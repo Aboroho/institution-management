@@ -1,0 +1,85 @@
+"use client";
+import { useState } from "react";
+import useSWR from "swr";
+import { get, patch } from "@/lib/api/client";
+import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge, StatusBadge } from "@/components/ui";
+
+type Row = Record<string, unknown>;
+const str = (v: unknown) => String(v ?? "");
+
+export default function OfferingDetail({ params }: { params: { id: string } }) {
+  const [tab, setTab] = useState("overview");
+  const { data, error, isLoading, mutate } = useSWR(`off-${params.id}`, () => get<Row>(`/course-offerings/${params.id}`).then((r) => r.data));
+  const { data: assessments } = useSWR(tab === "assessments" ? `off-assess-${params.id}` : null, () => get<Row[]>(`/assessments?courseOfferingId=${params.id}&limit=100`).then((r) => r.data));
+  const { data: sessions } = useSWR(tab === "attendance" ? `off-att-${params.id}` : null, () => get<Row[]>(`/attendance/sessions?courseOfferingId=${params.id}`).then((r) => r.data));
+  const { data: notices } = useSWR(tab === "notices" ? `off-not-${params.id}` : null, () => get<Row[]>(`/notices?courseOfferingId=${params.id}&limit=50`).then((r) => r.data));
+
+  async function toggle() {
+    if (!data) return;
+    await patch(`/course-offerings/${params.id}`, { isActive: !data.isActive });
+    await mutate();
+  }
+
+  if (isLoading) return <><PageHeader title="Course offering" /><LoadingSkeleton /></>;
+  if (error || !data) return <><PageHeader title="Course offering" /><ErrorState message="Failed to load offering" onRetry={() => mutate()} /></>;
+
+  const students = (data.students as Row[] | undefined) ?? [];
+  const assignments = (data.assignments as Row[] | undefined) ?? [];
+  const active = assignments.find((a) => a.isActive);
+  const schedules = (data.schedules as Row[] | undefined) ?? [];
+
+  return (
+    <div>
+      <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings", href: "/admin/course-offerings" }, { label: str((data.course as Row)?.title) }]} />
+      <PageHeader title={`${str((data.course as Row)?.title)}`} subtitle={`${str((data.academicYear as Row)?.name)} · ${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)} · Section ${str((data.section as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
+      <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
+
+      {tab === "overview" && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <Card className="p-5"><p className="text-sm text-slate-500">Status</p><p className="mt-1">{data.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</p></Card>
+          <Card className="p-5"><p className="text-sm text-slate-500">Current teacher</p><p className="mt-1 font-semibold">{active ? str(((active.teacher as Row)?.user as Row)?.name) : "Unassigned"}</p></Card>
+          <Card className="p-5"><p className="text-sm text-slate-500">Students</p><p className="mt-1 text-2xl font-bold">{students.length}</p></Card>
+          <Card className="p-5"><p className="text-sm text-slate-500">Sessions</p><p className="mt-1 text-2xl font-bold">{str((data._count as Row)?.sessions ?? 0)}</p></Card>
+        </div>
+      )}
+      {tab === "students" && (
+        <Table headers={["Student ID", "Name", "Email"]}>
+          {students.map((s) => <tr key={str(s.id)}><td className="px-4 py-3 font-medium">{str(s.studentId)}</td><td className="px-4 py-3">{str((s.user as Row)?.name)}</td><td className="px-4 py-3 text-sm text-slate-500">{str((s.user as Row)?.email)}</td></tr>)}
+        </Table>
+      )}
+      {tab === "teacher" && (
+        <Table headers={["Teacher", "Employee ID", "Since", "Until", "Status"]}>
+          {assignments.map((a) => <tr key={str(a.id)}><td className="px-4 py-3">{str(((a.teacher as Row)?.user as Row)?.name)}</td><td className="px-4 py-3">{str((a.teacher as Row)?.employeeId)}</td><td className="px-4 py-3 text-sm">{str(a.assignedAt).slice(0, 10)}</td><td className="px-4 py-3 text-sm">{a.endedAt ? str(a.endedAt).slice(0, 10) : "—"}</td><td className="px-4 py-3">{a.isActive ? <Badge tone="green">Active</Badge> : <Badge>Closed</Badge>}</td></tr>)}
+        </Table>
+      )}
+      {tab === "schedule" && (
+        schedules.length === 0 ? <p className="text-sm text-slate-500">No active schedule.</p> : schedules.map((v) => (
+          <Card key={str(v.id)} className="mb-3 p-4">
+            <p className="mb-2 text-sm font-semibold">Version {str(v.version)} · from {str(v.effectiveFrom).slice(0, 10)}</p>
+            <Table headers={["Day", "Start", "End", "Room"]}>
+              {((v.items as Row[]) ?? []).map((it, i) => <tr key={i}><td className="px-4 py-2">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][Number(it.weekday)]}</td><td className="px-4 py-2">{str(it.startTime)}</td><td className="px-4 py-2">{str(it.endTime)}</td><td className="px-4 py-2">{str(it.room || it.lab || "—")}</td></tr>)}
+            </Table>
+          </Card>
+        ))
+      )}
+      {tab === "attendance" && (
+        <Table headers={["Date", "Records"]}>
+          {(sessions ?? []).map((s) => <tr key={str(s.id)}><td className="px-4 py-3">{str(s.attendanceDate).slice(0, 10)}</td><td className="px-4 py-3">{str(((s.records as Row[]) ?? []).length)}</td></tr>)}
+        </Table>
+      )}
+      {tab === "assessments" && (
+        <Table headers={["Title", "Type", "Total", "Due"]}>
+          {(assessments ?? []).map((a) => <tr key={str(a.id)}><td className="px-4 py-3 font-medium">{str(a.title)}</td><td className="px-4 py-3"><Badge tone="blue">{str(a.type)}</Badge></td><td className="px-4 py-3">{str(a.totalMarks)}</td><td className="px-4 py-3 text-sm">{a.dueDate ? str(a.dueDate).slice(0, 10) : "—"}</td></tr>)}
+        </Table>
+      )}
+      {tab === "notices" && (
+        <div className="space-y-2">
+          {(notices ?? []).map((n) => (
+            <Card key={str(n.id)} className="p-4"><p className="font-semibold">{str(n.title)}</p><p className="mt-1 text-sm text-slate-600">{str(n.content)}</p><p className="mt-1 text-xs text-slate-400">{str(n.publishedAt).slice(0, 10)}</p></Card>
+          ))}
+          {(notices ?? []).length === 0 && <p className="text-sm text-slate-500">No notices.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
