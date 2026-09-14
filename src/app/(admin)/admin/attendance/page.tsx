@@ -3,7 +3,7 @@ import { Suspense, useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Spinner, Breadcrumbs, StatusBadge, Tabs, Card } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, SearchableSelect, Label, Spinner, Breadcrumbs, StatusBadge, Tabs, Card } from "@/components/ui";
 import { useSearchParams } from "next/navigation";
 
 type Row = Record<string, unknown>;
@@ -46,7 +46,7 @@ function AttendanceContent() {
         <>
           <Card className="mb-4 p-4">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-              <div className="md:col-span-2"><Label>Course offering</Label><Select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}><option value="">Select...</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+              <div className="md:col-span-2"><Label>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={setOfferingId} clearLabel="Select..." /></div>
               <div><Label>From</Label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
               <div><Label>To</Label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
             </div>

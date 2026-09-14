@@ -61,3 +61,47 @@ Swap with BullMQ/Redis for multi-instance production (same `enqueue` interface).
 2. `activeSlot` unique-field pattern instead of partial indexes: portable in Prisma, race-safe with transactions.
 3. Local-filesystem storage fallback: dev works without S3; production uses private S3 + signed URLs.
 4. Strict TypeScript, Zod on every write endpoint, consistent `{data, meta}` / `{error}` envelopes.
+
+## Validation UX review (2026-09-14)
+
+The UI uses a shared `CrudPage` plus custom workflow pages. API Zod errors already
+include `details.fieldErrors` and `details.formErrors`, but the UI previously
+rendered only the top-level "Validation failed" string. Required markers in the
+shared CRUD dialog did not enforce required values.
+
+Implemented plan:
+- Parse validation details defensively in `src/lib/validation/form-errors.ts`.
+  `ApiError.message` now includes readable field names and all validation messages,
+  so existing custom screens displaying it gain useful error summaries immediately.
+  Preserve specific business/validation instructions; hide internal 5xx messages
+  and explain network failures with a recovery action.
+- Shared CRUD dialogs validate visible required/email/number/date inputs before
+  submission. Server validation remains authoritative. Show inline messages,
+  red invalid borders, associated labels/help/error IDs, an alert summary and
+  first-invalid-field focus. Clear a field's stale error when edited and reset
+  errors when opening another record. Use form submission for Enter-key support
+  and disable editing/closing while saving. No domain rules or payload semantics
+  were changed.
+- Login now associates errors with inputs and maps server validation errors to
+  React Hook Form. Invalid credentials remain a form-level error to avoid
+  identifying which credential matched.
+- Regression tests cover parsing, malformed details, multiple field errors,
+  message preservation, network errors, basic validation and accessible markup.
+
+Scope / follow-up: custom student, enrollment, assessment, marks, attendance,
+settings and other workflow forms benefit from the improved API error summary
+where they display `ApiError.message`, but have not all been migrated to inline
+errors. Use the shared parser when migrating them; keep unmatched fields and
+form-level errors visible in the summary. Nested Zod paths are currently flattened
+by the API to top-level keys; row-specific inline validation for bulk workflows
+requires a backwards-compatible issue-path API addition. Avoid guessing field
+assignments for business conflicts that have no structured field details.
+
+Verification: unit suite passes. Full typecheck/build is blocked here by Prisma
+engine downloads failing TLS connection (generated Prisma types unavailable).
+`npm run lint` prompts for initial ESLint configuration; the repository does not
+currently provide it. Browser interaction/E2E validation remains to be run in a
+configured environment. Suggested manual checks: submit a blank CRUD form, correct
+only one field, submit a server-rejected value, retry after a connection failure,
+then close/reopen and edit another record; verify focus, error clearing, preserved
+values and keyboard submission throughout.

@@ -3,7 +3,7 @@ import { Suspense, useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Breadcrumbs, Tabs, Card, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Breadcrumbs, Tabs, Card, Badge } from "@/components/ui";
 import { useSearchParams } from "next/navigation";
 
 type Row = Record<string, unknown>;
@@ -46,7 +46,7 @@ function MarksContent() {
         <>
           <Card className="mb-4 p-4">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <div><Label>Course offering</Label><Select value={offeringId} onChange={(e) => { setOfferingId(e.target.value); setAssessmentId(""); }}><option value="">Select...</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+              <div><Label>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={(v) => { setOfferingId(v); setAssessmentId(""); }} clearLabel="Select..." /></div>
               <div><Label>Assessment</Label><Select value={assessmentId} onChange={(e) => setAssessmentId(e.target.value)}><option value="">Select...</option>{(assessments ?? []).map((a) => <option key={str(a.id)} value={str(a.id)}>{str(a.title)} ({str(a.totalMarks)})</option>)}</Select></div>
             </div>
           </Card>

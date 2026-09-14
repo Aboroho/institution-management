@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Pagination, Breadcrumbs, Badge, Card } from "@/components/ui";
+import { PageHeader, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Pagination, Breadcrumbs, Badge, Card } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -24,7 +24,7 @@ export default function AdminAssessmentsPage() {
       <PageHeader title="Assessments" subtitle="All assessments across offerings. Teachers manage their own." />
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <div><Label>Course offering</Label><Select value={offeringId} onChange={(e) => { setOfferingId(e.target.value); setPage(1); }}><option value="">All</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={(v) => { setOfferingId(v); setPage(1); }} clearLabel="All" /></div>
           <div><Label>Type</Label><Select value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}><option value="">All</option>{["ASSIGNMENT", "CLASS_TEST", "MIDTERM", "FINAL_EXAM", "PRACTICAL", "QUIZ", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}</Select></div>
         </div>
       </Card>

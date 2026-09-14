@@ -1,9 +1,9 @@
 "use client";
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Loader2, AlertTriangle, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, AlertTriangle, Inbox, ChevronLeft, ChevronRight, ChevronDown, Search, Check } from "lucide-react";
 
 export const cn = (...xs: (string | false | null | undefined)[]) => twMerge(clsx(xs));
 
@@ -29,7 +29,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
@@ -40,30 +40,237 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
     <select
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
 Select.displayName = "Select";
+
+// ---------- Searchable select (combobox) ----------
+export type SelectOption = { value: string; label: string; search?: string };
+
+export function SearchableSelect({
+  options,
+  loadOptions,
+  value,
+  onChange,
+  clearLabel,
+  placeholder = "Select...",
+  disabled,
+  ariaLabel,
+  className,
+  minQuery = 0,
+}: {
+  /** Static options, filtered client-side. Provide this OR `loadOptions`. */
+  options?: SelectOption[];
+  /** Remote options. Provide this OR `options`. Called with the search query. */
+  loadOptions?: (query: string) => Promise<SelectOption[]>;
+  value: string;
+  onChange: (value: string) => void;
+  /** Label of the leading "clear/All" row (value ""). Omit to hide it. */
+  clearLabel?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  ariaLabel?: string;
+  className?: string;
+  /** For `loadOptions`: minimum query length before searching. */
+  minQuery?: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [remote, setRemote] = useState<SelectOption[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [active, setActive] = useState(0);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const reqId = useRef(0);
+
+  const list = loadOptions ? (remote ?? []) : (options ?? []);
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(
+    () => (loadOptions ? list : list.filter((o) => !q || (o.search ?? o.label.toLowerCase()).includes(q))),
+    [list, q, loadOptions],
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const items: SelectOption[] = clearLabel != null ? [{ value: "", label: clearLabel }, ...filtered] : filtered;
+
+  // Fetch remote options (debounced) while open.
+  useEffect(() => {
+    if (!open || !loadOptions) return;
+    if (query.trim().length < minQuery) {
+      setRemote([]);
+      setLoading(false);
+      return;
+    }
+    const id = ++reqId.current;
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await loadOptions(query.trim());
+        if (reqId.current === id) {
+          setRemote(res);
+          setActive(0);
+        }
+      } catch {
+        if (reqId.current === id) setRemote([]);
+      } finally {
+        if (reqId.current === id) setLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [open, query, loadOptions, minQuery]);
+
+  // Reset + focus search input when opened.
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setActive(0);
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  // Reset keyboard cursor when the visible list changes (static mode).
+  useEffect(() => {
+    if (open && !loadOptions) setActive(0);
+  }, [open, q, loadOptions]);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  // Keep the active row in view.
+  useEffect(() => {
+    itemRefs.current[active]?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
+
+  function select(v: string) {
+    const opt = list.find((o) => o.value === v);
+    setSelectedLabel(v && opt ? opt.label : null);
+    onChange(v);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  const displayLabel = value
+    ? (list.find((o) => o.value === value)?.label ?? selectedLabel ?? "")
+    : "";
+
+  let hint: string | null = null;
+  if (loading) hint = "Searching...";
+  else if (loadOptions != null && query.trim().length < minQuery) hint = `Type at least ${minQuery} characters to search.`;
+  else if (filtered.length === 0) hint = q || loadOptions != null ? "No matches" : "No options";
+
+  return (
+    <div ref={rootRef} className={cn("relative", className)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+        className={cn(
+          "flex w-full items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50",
+          open && "border-brand-500 ring-2 ring-brand-100",
+        )}
+      >
+        <span className={cn("truncate", !value && "text-slate-400")}>{value ? displayLabel : placeholder}</span>
+        <ChevronDown size={16} className={cn("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 z-30 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3">
+            <Search size={14} className="shrink-0 text-slate-400" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setActive((a) => Math.min(a + 1, items.length - 1));
+                } else if (e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActive((a) => Math.max(a - 1, 0));
+                } else if (e.key === "Enter") {
+                  e.preventDefault();
+                  const o = items[active];
+                  if (o) select(o.value);
+                } else if (e.key === "Escape") {
+                  e.stopPropagation();
+                  setOpen(false);
+                }
+              }}
+              placeholder={ariaLabel ? `Search ${ariaLabel}...` : "Search..."}
+              aria-label={ariaLabel ? `Search ${ariaLabel}` : "Search options"}
+              className="w-full  bg-transparent py-2  text-sm text-slate-700 outline-none placeholder:text-slate-400 focus-visible:outline-none"
+            />
+          </div>
+          <div role="listbox" aria-label={ariaLabel} className="max-h-60 overflow-y-auto py-1">
+            {items.map((o, i) => (
+              <button
+                key={o.value || "__clear__"}
+                ref={(el) => {
+                  itemRefs.current[i] = el;
+                }}
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => select(o.value)}
+                onMouseEnter={() => setActive(i)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm",
+                  i === active && "bg-slate-100",
+                  o.value === value ? "font-medium text-brand-700" : "text-slate-700",
+                )}
+              >
+                <span className="truncate">{o.label}</span>
+                {o.value === value && <Check size={14} className="shrink-0 text-brand-600" />}
+              </button>
+            ))}
+            {hint && <p className="px-3 py-2 text-sm text-slate-400">{hint}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
   ({ className, ...props }, ref) => (
     <textarea
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
 Textarea.displayName = "Textarea";
 
-export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return <label className="mb-1 block text-sm font-medium text-slate-700">{children}{required && <span className="ml-1 text-red-500">*</span>}</label>;
+export function Label({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
+  return <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-slate-700">{children}{required && <span className="ml-1 text-red-500">*</span>}</label>;
 }
 
-export function FieldError({ error }: { error?: string }) {
+export function FieldError({ error, id }: { error?: string; id?: string }) {
   if (!error) return null;
-  return <p className="mt-1 text-xs text-red-600">{error}</p>;
+  return <p id={id} role="alert" className="mt-1 text-xs text-red-600">{error}</p>;
 }
 
 // ---------- Cards / layout ----------

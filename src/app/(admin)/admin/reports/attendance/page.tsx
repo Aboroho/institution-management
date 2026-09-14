@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Breadcrumbs, Card } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Breadcrumbs, Card } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -25,8 +25,8 @@ export default function AttendanceReportPage() {
       <PageHeader title="Attendance report" />
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <div><Label>Year</Label><Select value={f.academicYearId ?? ""} onChange={(e) => setF({ ...f, academicYearId: e.target.value })}><option value="">All</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label>Trade</Label><Select value={f.tradeId ?? ""} onChange={(e) => setF({ ...f, tradeId: e.target.value, semesterId: "", sectionId: "" })}><option value="">All</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label>Year</Label><SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setF({ ...f, academicYearId: v })} clearLabel="All" /></div>
+          <div><Label>Trade</Label><SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setF({ ...f, tradeId: v, semesterId: "", sectionId: "" })} clearLabel="All" /></div>
           <div><Label>Semester</Label><Select value={f.semesterId ?? ""} onChange={(e) => setF({ ...f, semesterId: e.target.value })}><option value="">All</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label>Shift</Label><Select value={f.shiftId ?? ""} onChange={(e) => setF({ ...f, shiftId: e.target.value })}><option value="">All</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label>Section</Label><Select value={f.sectionId ?? ""} onChange={(e) => setF({ ...f, sectionId: e.target.value })}><option value="">All</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>

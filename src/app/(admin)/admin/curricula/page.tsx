@@ -4,7 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { get, post, ApiError } from "@/lib/api/client";
 import { useTrades, useSemesters, useCourses } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Label, FieldError, Spinner, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -41,9 +41,7 @@ export default function CurriculaPage() {
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Curricula" }]} />
       <PageHeader title="Curricula" subtitle="Trade + Semester → Courses. New versions preserve history." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid max-w-xl grid-cols-2 gap-2">
-        <Select value={tradeId} onChange={(e) => { setTradeId(e.target.value); setSemesterId(""); }} aria-label="Trade">
-          <option value="">All trades</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
+        <SearchableSelect options={trades} value={tradeId} onChange={(v) => { setTradeId(v); setSemesterId(""); }} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} aria-label="Semester">
           <option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
@@ -67,7 +65,7 @@ export default function CurriculaPage() {
       <Dialog open={dialog} title="New curriculum (creates next version)" onClose={() => setDialog(false)} wide>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div><Label required>Trade</Label><Select value={form.tradeId ?? ""} onChange={(e) => setForm({ ...form, tradeId: e.target.value, semesterId: "" })}><option value="">Select...</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+            <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "" })} clearLabel="Select..." /></div>
             <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           </div>
           <div><Label required>Name</Label><Input value={form.name ?? ""} placeholder="2026 Curriculum" onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 import Link from "next/link";
 
@@ -56,12 +56,8 @@ export default function SectionsPage() {
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Sections" }]} />
       <PageHeader title="Sections" subtitle="A section never mixes years, trades, semesters or shifts." actions={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-        <Select value={f.academicYearId ?? ""} onChange={(e) => setFilter("academicYearId", e.target.value)} aria-label="Academic year">
-          <option value="">All years</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
-        <Select value={f.tradeId ?? ""} onChange={(e) => setFilter("tradeId", e.target.value)} aria-label="Trade">
-          <option value="">All trades</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
+        <SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setFilter("academicYearId", v)} ariaLabel="Academic year" clearLabel="All years" placeholder="All years" />
+        <SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setFilter("tradeId", v)} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={f.semesterId ?? ""} onChange={(e) => setFilter("semesterId", e.target.value)} aria-label="Semester">
           <option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
@@ -97,8 +93,8 @@ export default function SectionsPage() {
           {dialog?.mode === "create" && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label required>Academic year</Label><Select value={form.academicYearId ?? ""} onChange={(e) => setForm({ ...form, academicYearId: e.target.value })}><option value="">Select...</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-                <div><Label required>Trade</Label><Select value={form.tradeId ?? ""} onChange={(e) => setForm({ ...form, tradeId: e.target.value, semesterId: "" })}><option value="">Select...</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+                <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm({ ...form, academicYearId: v })} clearLabel="Select..." /></div>
+                <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "" })} clearLabel="Select..." /></div>
                 <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
                 <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm({ ...form, shiftId: e.target.value })}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
               </div>

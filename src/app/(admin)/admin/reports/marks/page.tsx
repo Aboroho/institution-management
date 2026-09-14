@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Breadcrumbs, Card, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, SearchableSelect, Label, Breadcrumbs, Card, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -21,7 +21,7 @@ export default function MarksReportPage() {
       <PageHeader title="Marks report" />
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          <div className="md:col-span-2"><Label>Course offering</Label><Select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}><option value="">All</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div className="md:col-span-2"><Label>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={setOfferingId} clearLabel="All" /></div>
           <div className="flex items-end"><Button onClick={() => setRun(qs({ courseOfferingId: offeringId || undefined }))}>Run report</Button></div>
         </div>
       </Card>

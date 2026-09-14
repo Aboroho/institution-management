@@ -4,7 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -53,12 +53,12 @@ export default function OfferingsPage() {
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings" }]} />
       <PageHeader title="Course Offerings" subtitle="Class instances of reusable courses." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-        <Select value={f.academicYearId ?? ""} onChange={(e) => setFilter("academicYearId", e.target.value)} aria-label="Year"><option value="">All years</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
-        <Select value={f.tradeId ?? ""} onChange={(e) => setFilter("tradeId", e.target.value)} aria-label="Trade"><option value="">All trades</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+        <SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setFilter("academicYearId", v)} ariaLabel="Year" clearLabel="All years" placeholder="All years" />
+        <SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setFilter("tradeId", v)} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={f.semesterId ?? ""} onChange={(e) => setFilter("semesterId", e.target.value)} aria-label="Semester"><option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.shiftId ?? ""} onChange={(e) => setFilter("shiftId", e.target.value)} aria-label="Shift"><option value="">All shifts</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.sectionId ?? ""} onChange={(e) => setFilter("sectionId", e.target.value)} aria-label="Section"><option value="">All sections</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
-        <Select value={f.courseId ?? ""} onChange={(e) => setFilter("courseId", e.target.value)} aria-label="Course"><option value="">All courses</option>{courses.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+        <SearchableSelect options={courses} value={f.courseId ?? ""} onChange={(v) => setFilter("courseId", v)} ariaLabel="Course" clearLabel="All courses" placeholder="All courses" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No course offerings" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
@@ -84,12 +84,12 @@ export default function OfferingsPage() {
       )}
       <Dialog open={dialog} title="New course offering" onClose={() => setDialog(false)} wide>
         <div className="grid grid-cols-2 gap-3">
-          <div><Label required>Academic year</Label><Select value={form.academicYearId ?? ""} onChange={(e) => setForm({ ...form, academicYearId: e.target.value })}><option value="">Select...</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Trade</Label><Select value={form.tradeId ?? ""} onChange={(e) => setForm({ ...form, tradeId: e.target.value, semesterId: "", sectionId: "" })}><option value="">Select...</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm({ ...form, academicYearId: v })} clearLabel="Select..." /></div>
+          <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "", sectionId: "" })} clearLabel="Select..." /></div>
           <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value, sectionId: "" })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm({ ...form, shiftId: e.target.value, sectionId: "" })}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label required>Section</Label><Select value={form.sectionId ?? ""} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}><option value="">Select...</option>{formSections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Course</Label><Select value={form.courseId ?? ""} onChange={(e) => setForm({ ...form, courseId: e.target.value })}><option value="">Select...</option>{courses.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Course</Label><SearchableSelect options={courses} value={form.courseId ?? ""} onChange={(v) => setForm({ ...form, courseId: v })} clearLabel="Select..." /></div>
         </div>
         <FieldError error={formError} />
         <div className="mt-4 flex justify-end gap-2">

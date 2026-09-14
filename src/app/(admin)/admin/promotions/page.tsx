@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, Label, Spinner, Breadcrumbs, Badge, Card, Dialog, FieldError } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Spinner, Breadcrumbs, Badge, Card, Dialog, FieldError } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -56,8 +56,8 @@ export default function PromotionsPage() {
       <PageHeader title="Promotions" subtitle="Preview eligibility, review, then confirm. History is never overwritten." />
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-          <div><Label required>Year</Label><Select value={f.academicYearId ?? ""} onChange={(e) => setF({ ...f, academicYearId: e.target.value })}><option value="">Select...</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Trade</Label><Select value={f.tradeId ?? ""} onChange={(e) => setF({ ...f, tradeId: e.target.value, semesterId: "", sectionId: "" })}><option value="">Select...</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Year</Label><SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setF({ ...f, academicYearId: v })} clearLabel="Select..." /></div>
+          <div><Label required>Trade</Label><SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setF({ ...f, tradeId: v, semesterId: "", sectionId: "" })} clearLabel="Select..." /></div>
           <div><Label required>Semester</Label><Select value={f.semesterId ?? ""} onChange={(e) => setF({ ...f, semesterId: e.target.value })}><option value="">Select...</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label>Shift</Label><Select value={f.shiftId ?? ""} onChange={(e) => setF({ ...f, shiftId: e.target.value })}><option value="">All</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label>Section</Label><Select value={f.sectionId ?? ""} onChange={(e) => setF({ ...f, sectionId: e.target.value })}><option value="">All</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>

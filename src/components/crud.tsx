@@ -2,6 +2,7 @@
 // Generic real-API CRUD list page: search, filters, pagination, create/edit dialog.
 // Every value comes from the API — no mock data.
 import React, { useMemo, useState } from "react";
+import { validateFields, validationDetails } from "@/lib/validation/form-errors";
 import Link from "next/link";
 import useSWR from "swr";
 import { Plus, Pencil, Search } from "lucide-react";
@@ -46,6 +47,35 @@ export function CrudPage(props: Props) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const formRef = React.useRef<HTMLFormElement>(null);
+  const formId = React.useId();
+  const visibleFields = props.fields.filter((f) => !f.hideInForm && !(dialog?.mode === "edit" && f.createOnly));
+
+  const [focusAttempt, setFocusAttempt] = useState(0);
+  React.useEffect(() => {
+    if (focusAttempt) {
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+    }
+  }, [focusAttempt]);
+
+  function updateField(name: string, value: unknown) {
+    setForm((previous) => ({ ...previous, [name]: value }));
+    // Keep errors on other fields; avoid moving focus while the user types.
+    if (fieldErrors[name]) setFieldErrors((previous) => {
+      const next = { ...previous }; delete next[name]; return next;
+    });
+    setFormError("");
+  }
+
+  function inputProps(f: Field) {
+    return {
+      id: `${formId}-${f.name}`, name: f.name, required: f.required,
+      "aria-invalid": !!fieldErrors[f.name],
+      "aria-describedby": [f.helper ? `${formId}-${f.name}-help` : "", fieldErrors[f.name] ? `${formId}-${f.name}-error` : ""].filter(Boolean).join(" ") || undefined,
+    };
+  }
+
   React.useEffect(() => {
     const t = setTimeout(() => { setDebounced(search); setPage(1); }, 400);
     return () => clearTimeout(t);
@@ -57,7 +87,7 @@ export function CrudPage(props: Props) {
   const meta = (data?.meta ?? {}) as { total?: number; page?: number; limit?: number };
   const total = Number(meta.total ?? items.length);
 
-  function openCreate() { setForm({}); setFormError(""); setDialog({ mode: "create" }); }
+  function openCreate() { setForm({}); setFormError(""); setFieldErrors({}); setDialog({ mode: "create" }); }
   function openEdit(row: Record<string, unknown>) {
     const initial: Record<string, unknown> = {};
     for (const f of props.fields) {
@@ -66,11 +96,20 @@ export function CrudPage(props: Props) {
       if (f.type === "datetime" && v) v = String(v).slice(0, 16);
       initial[f.name] = (v as string) ?? "";
     }
-    setForm(initial); setFormError(""); setDialog({ mode: "edit", row });
+    setForm(initial); setFormError(""); setFieldErrors({}); setDialog({ mode: "edit", row });
   }
 
   async function save() {
-    setSaving(true); setFormError("");
+    if (saving) return;
+    const errors = validateFields(visibleFields, form);
+    setFieldErrors(errors);
+    setFormError("");
+    if (Object.keys(errors).length) {
+      setFormError("Please correct the highlighted fields before saving.");
+      setFocusAttempt((n) => n + 1);
+      return;
+    }
+    setSaving(true);
     try {
       // Strip empty optionals; coerce numbers/checkboxes.
       const payload: Record<string, unknown> = {};
@@ -88,7 +127,11 @@ export function CrudPage(props: Props) {
       setDialog(null);
       await mutate();
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : "Save failed");
+      if (e instanceof ApiError) {
+        setFieldErrors(validationDetails(e.details).fieldErrors);
+        setFocusAttempt((n) => n + 1);
+      }
+      setFormError(e instanceof ApiError ? e.message : "Unable to save your changes. Please try again.");
     } finally { setSaving(false); }
   }
 
@@ -148,36 +191,40 @@ export function CrudPage(props: Props) {
         </>
       )}
 
-      <Dialog open={dialog !== null} title={dialog?.mode === "create" ? (props.createTitle ?? `New ${props.title}`) : (props.editTitle ?? `Edit`)} onClose={() => setDialog(null)}>
-        <div className="space-y-4">
-          {props.fields.filter((f) => !f.hideInForm && !(dialog?.mode === "edit" && f.createOnly)).map((f) => (
+      <Dialog open={dialog !== null} title={dialog?.mode === "create" ? (props.createTitle ?? `New ${props.title}`) : (props.editTitle ?? `Edit`)} onClose={() => { if (!saving) setDialog(null); }}>
+        <form ref={formRef} noValidate onSubmit={(e) => { e.preventDefault(); void save(); }} className="space-y-4">
+          <FieldError error={formError} />
+          <fieldset disabled={saving} className="space-y-4">
+          {visibleFields.map((f) => (
             <div key={f.name}>
-              <Label required={f.required}>{f.label}</Label>
+              <Label htmlFor={`${formId}-${f.name}`} required={f.required}>{f.label}</Label>
               {f.type === "select" ? (
-                <Select value={String(form[f.name] ?? "")} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}>
+                <Select {...inputProps(f)} value={String(form[f.name] ?? "")} onChange={(e) => updateField(f.name, e.target.value)}>
                   <option value="">Select...</option>
                   {(f.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </Select>
               ) : f.type === "textarea" ? (
-                <Textarea value={String(form[f.name] ?? "")} placeholder={f.placeholder} onChange={(e) => setForm({ ...form, [f.name]: e.target.value })} />
+                <Textarea {...inputProps(f)} value={String(form[f.name] ?? "")} placeholder={f.placeholder} onChange={(e) => updateField(f.name, e.target.value)} />
               ) : f.type === "checkbox" ? (
-                <input type="checkbox" checked={Boolean(form[f.name])} onChange={(e) => setForm({ ...form, [f.name]: e.target.checked })} className="h-5 w-5 accent-brand-600" />
+                <input {...inputProps(f)} type="checkbox" checked={Boolean(form[f.name])} onChange={(e) => updateField(f.name, e.target.checked)} className="h-5 w-5 accent-brand-600" />
               ) : (
                 <Input
+                  {...inputProps(f)}
                   type={f.type === "datetime" ? "datetime-local" : f.type ?? "text"}
                   value={String(form[f.name] ?? "")} placeholder={f.placeholder}
-                  onChange={(e) => setForm({ ...form, [f.name]: e.target.value })}
+                  onChange={(e) => updateField(f.name, e.target.value)}
                 />
               )}
-              {f.helper && <p className="mt-1 text-xs text-slate-500">{f.helper}</p>}
+              <FieldError id={`${formId}-${f.name}-error`} error={fieldErrors[f.name]?.join(" ")} />
+              {f.helper && <p id={`${formId}-${f.name}-help`} className="mt-1 text-xs text-slate-500">{f.helper}</p>}
             </div>
           ))}
-          <FieldError error={formError} />
+          </fieldset>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button type="button" disabled={saving} variant="secondary" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving && <Spinner />} Save</Button>
           </div>
-        </div>
+        </form>
       </Dialog>
     </div>
   );
