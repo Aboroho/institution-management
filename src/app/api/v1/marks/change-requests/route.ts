@@ -6,6 +6,7 @@ import { requireAdmin, requireActiveTeacherAssignment } from "@/lib/permissions/
 import { ok, fail, paginated, parsePagination } from "@/lib/api/response";
 import { createMarkChangeRequest, listMarkChangeRequests } from "@/modules/marks/marks.service";
 import { prisma } from "@/lib/db/prisma";
+import { notifyAdmins } from "@/lib/notifications/notify";
 import { audit } from "@/lib/audit/audit";
 
 export async function GET(req: NextRequest) {
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
     else if (auth.role !== "ADMIN") { const { AppError } = await import("@/lib/errors/errors"); return fail(new AppError("FORBIDDEN", "You do not have access to this resource", 403)); }
     const created = await createMarkChangeRequest({ ...body, requestedById: auth.userId });
     await audit({ actorUserId: auth.userId, action: "markChangeRequest.create", entityType: "AssessmentMarkChangeRequest", entityId: created.id, newValues: created, ...requestMeta() });
+    await notifyAdmins({
+      type: "PENDING_APPROVAL",
+      title: "Mark change awaiting approval",
+      message: "A teacher submitted a mark correction that requires admin approval.",
+      resourceType: "AssessmentMarkChangeRequest",
+      resourceId: created.id,
+    });
     return ok(created, undefined, 201);
   } catch (e) { return fail(e); }
 }

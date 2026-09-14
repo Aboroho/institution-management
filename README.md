@@ -844,6 +844,7 @@ Possible events:
 - NEW_NOTICE
 - MARK_PUBLISHED
 - ATTENDANCE_UPDATE
+- PENDING_APPROVAL
 - PROMOTION_RESULT
 - SYSTEM_NOTIFICATION
 
@@ -1300,8 +1301,10 @@ Operations:
  /admin/enrollments
  /admin/promotions
  /admin/attendance
+ /admin/attendance/approvals
  /admin/assessments
  /admin/marks
+ /admin/marks/approvals
  /admin/schedules
  /admin/notices
 
