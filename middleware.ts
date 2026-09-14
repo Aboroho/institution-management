@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
+import { verifySession, sessionCookieName } from "@/lib/auth/token";
 
 async function roleFromRequest(req: NextRequest): Promise<string | null> {
-  const token = req.cookies.get("ems_session")?.value;
+  const token = req.cookies.get(sessionCookieName())?.value;
   if (!token) return null;
-  try {
-    const secret = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret-change-me-please-32");
-    const { payload } = await jwtVerify(token, secret);
-    return String(payload.role || "");
-  } catch {
-    return null;
-  }
+  const session = await verifySession(token);
+  return session?.role ?? null;
 }
 
 export async function middleware(req: NextRequest) {
@@ -41,8 +36,7 @@ export async function middleware(req: NextRequest) {
 
   if (pathname.startsWith("/admin") && role !== "ADMIN") return NextResponse.redirect(new URL("/login", req.url));
   if (pathname.startsWith("/teacher") && role !== "TEACHER" && role !== "ADMIN") {
-    // Admins may preview teacher pages? No — strict separation, admins use /admin.
-    if (role !== "ADMIN") return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", req.url));
   }
   if (pathname.startsWith("/student") && role !== "STUDENT") return NextResponse.redirect(new URL("/login", req.url));
 

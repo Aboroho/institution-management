@@ -10,10 +10,20 @@ export interface SessionPayload {
 
 const COOKIE_NAME = "ems_session";
 
+// Development-only fallback so the app runs out of the box without a .env file.
+// Production must always provide a real AUTH_SECRET (>= 16 chars); otherwise
+// token signing/verification fails fast instead of silently using a weak secret.
+const DEV_FALLBACK_SECRET = "dev-secret-change-me-please-32";
+
 function secret(): Uint8Array {
   const s = process.env.AUTH_SECRET;
-  if (!s || s.length < 16) throw new Error("AUTH_SECRET is not configured");
-  return new TextEncoder().encode(s);
+  if (s && s.length >= 16) {
+    return new TextEncoder().encode(s);
+  }
+  if (process.env.NODE_ENV !== "production") {
+    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+  }
+  throw new Error("AUTH_SECRET is not configured");
 }
 
 export function sessionCookieName() {

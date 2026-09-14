@@ -7,7 +7,7 @@ coverage
 .env
 .env*.local
 !.env.example
-storage/
+/storage/
 *.pem
 .DS_Store
 test-results/
