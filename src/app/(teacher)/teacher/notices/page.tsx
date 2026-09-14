@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Label, FieldError, Spinner, Breadcrumbs, Textarea } from "@/components/ui";
+import { PageHeader, Button, Card, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Textarea } from "@/components/ui";
 import { Plus } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -45,7 +45,7 @@ export default function TeacherNotices() {
       )}
       <Dialog open={dialog} title="New notice" onClose={() => setDialog(false)}>
         <div className="space-y-3">
-          <div><Label required>Course offering</Label><Select value={form.courseOfferingId ?? ""} onChange={(e) => setForm({ ...form, courseOfferingId: e.target.value })}><option value="">Select...</option>{(offerings ?? []).map((o) => <option key={str(o.id)} value={str(o.id)}>{str((o.course as Row)?.title)} · {str((o.section as Row)?.name)}</option>)}</Select></div>
+          <div><Label required>Course offering</Label><SearchableSelect options={(offerings ?? []).map((o) => { const label = `${str((o.course as Row)?.title)} · ${str((o.section as Row)?.name)}`; return { value: str(o.id), label, search: `${str((o.course as Row)?.title)} ${str((o.course as Row)?.code)} ${str((o.section as Row)?.name)}`.toLowerCase() }; })} value={form.courseOfferingId ?? ""} onChange={(v) => setForm({ ...form, courseOfferingId: v })} clearLabel="Select..." /></div>
           <div><Label required>Title</Label><Input value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div><Label required>Content</Label><Textarea rows={4} value={form.content ?? ""} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
           <div><Label>Expires at</Label><Input type="date" value={form.expiresAt ?? ""} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>

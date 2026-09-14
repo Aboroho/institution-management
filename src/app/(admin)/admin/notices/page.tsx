@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Textarea, Label, FieldError, Spinner, Pagination, Breadcrumbs } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, SearchableSelect, Textarea, Label, FieldError, Spinner, Pagination, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -38,9 +38,7 @@ export default function AdminNoticesPage() {
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Notices" }]} />
       <PageHeader title="Notices" subtitle="Course announcements. Students are notified." actions={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
       <div className="mb-4 max-w-md">
-        <Select value={offeringId} onChange={(e) => { setOfferingId(e.target.value); setPage(1); }} aria-label="Offering">
-          <option value="">All offerings</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </Select>
+        <SearchableSelect options={offerings} value={offeringId} onChange={(v) => { setOfferingId(v); setPage(1); }} ariaLabel="Offering" clearLabel="All offerings" placeholder="All offerings" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load notices" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No notices" action={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
@@ -65,7 +63,7 @@ export default function AdminNoticesPage() {
       <Dialog open={dialog !== null} title={dialog?.mode === "create" ? "New notice" : "Edit notice"} onClose={() => setDialog(null)} wide>
         <div className="space-y-4">
           {dialog?.mode === "create" && (
-            <div><Label required>Course offering</Label><Select value={form.courseOfferingId ?? ""} onChange={(e) => setForm({ ...form, courseOfferingId: e.target.value })}><option value="">Select...</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+            <div><Label required>Course offering</Label><SearchableSelect options={offerings} value={form.courseOfferingId ?? ""} onChange={(v) => setForm({ ...form, courseOfferingId: v })} clearLabel="Select..." /></div>
           )}
           <div><Label required>Title</Label><Input value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
           <div><Label required>Content</Label><Textarea rows={4} value={form.content ?? ""} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>

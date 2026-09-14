@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useTeachers, useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge, Textarea } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge, Textarea } from "@/components/ui";
 import { Plus, ArrowLeftRight } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -70,8 +70,8 @@ export default function AssignmentsPage() {
       )}
       <Dialog open={assignOpen} title="Assign teacher" onClose={() => setAssignOpen(false)}>
         <div className="space-y-4">
-          <div><Label required>Course offering</Label><Select value={form.courseOfferingId ?? ""} onChange={(e) => setForm({ ...form, courseOfferingId: e.target.value })}><option value="">Select...</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Teacher</Label><Select value={form.teacherId ?? ""} onChange={(e) => setForm({ ...form, teacherId: e.target.value })}><option value="">Select...</option>{teachers.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Course offering</Label><SearchableSelect options={offerings} value={form.courseOfferingId ?? ""} onChange={(v) => setForm({ ...form, courseOfferingId: v })} clearLabel="Select..." /></div>
+          <div><Label required>Teacher</Label><SearchableSelect options={teachers} value={form.teacherId ?? ""} onChange={(v) => setForm({ ...form, teacherId: v })} clearLabel="Select..." /></div>
           <div><Label>Reason</Label><Textarea value={form.reason ?? ""} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
@@ -86,7 +86,7 @@ export default function AssignmentsPage() {
             Current teacher loses access to attendance, marks and new notices. History stays attributed to them. The replacement gains access immediately.
           </div>
           <div><Label>Course offering</Label><p className="text-sm font-medium">{subRow ? str(((subRow.courseOffering as Row)?.course as Row)?.title) : ""}</p></div>
-          <div><Label required>Replacement teacher</Label><Select value={form.newTeacherId ?? ""} onChange={(e) => setForm({ ...form, newTeacherId: e.target.value })}><option value="">Select...</option>{teachers.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Replacement teacher</Label><SearchableSelect options={teachers} value={form.newTeacherId ?? ""} onChange={(v) => setForm({ ...form, newTeacherId: v })} clearLabel="Select..." /></div>
           <div><Label>Reason</Label><Textarea value={form.reason ?? ""} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
