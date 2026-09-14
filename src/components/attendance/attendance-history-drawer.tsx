@@ -1,0 +1,131 @@
+"use client";
+/**
+ * AttendanceHistoryDrawer
+ *
+ * Opens a side drawer for a single AttendanceSession and lists every
+ * student-level change (initial entries + corrections) along with who,
+ * what, when, why, and whether the change was approval-based.
+ *
+ * Scope: only changes belonging to the selected AttendanceSession. No
+ * unrelated history is shown.
+ */
+
+import useSWR from "swr";
+import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Badge } from "@/components/ui";
+import { get } from "@/lib/api/client";
+import type { AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
+
+type Row = Record<string, unknown>;
+const str = (v: unknown) => String(v ?? "");
+
+export function AttendanceHistoryDrawer({
+  sessionId,
+  open,
+  onClose,
+}: {
+  sessionId: string | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const key = sessionId ? `att-hist-${sessionId}` : null;
+  const { data, error, isLoading } = useSWR(
+    key,
+    () => get<AttendanceHistoryPayload>(`/attendance/sessions/${sessionId}/history`).then((r) => r.data),
+  );
+
+  return (
+    <Dialog
+      open={open}
+      title="Attendance History"
+      wide
+      onClose={onClose}
+    >
+      {isLoading ? (
+        <LoadingSkeleton />
+      ) : error ? (
+        <ErrorState message="Failed to load history" />
+      ) : !data ? (
+        <EmptyState title="No history" />
+      ) : (
+        <div className="space-y-5">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-slate-700">{str(data.session.courseOffering.course.title)}</span>
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-600">Section {str(data.session.courseOffering.section.name)}</span>
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-600">{data.session.attendanceDate}</span>
+            </div>
+          </div>
+
+          <section>
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">Students in this session</h3>
+            {data.students.length === 0 ? (
+              <EmptyState title="No student records" />
+            ) : (
+              <Table headers={["Student ID", "Name", "Current status", "Direct corrections"]}>
+                {data.students.map((s) => (
+                  <tr key={s.recordId}>
+                    <td className="px-4 py-2 font-mono text-xs">{s.studentId}</td>
+                    <td className="px-4 py-2">{s.name}</td>
+                    <td className="px-4 py-2"><StatusBadge status={s.currentStatus} /></td>
+                    <td className="px-4 py-2 text-sm">{s.directCorrections}</td>
+                  </tr>
+                ))}
+              </Table>
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-sm font-semibold text-slate-700">Change history (immutable)</h3>
+            {data.history.length === 0 ? (
+              <EmptyState title="No changes yet" hint="This session has not been modified since it was created." />
+            ) : (
+              <Table headers={["Date", "Student", "Previous", "New", "By", "Role", "Reason", "Type"]}>
+                {data.history.map((h) => {
+                  const student = data.students.find((s) => s.recordId === h.recordId);
+                  return (
+                    <tr key={h.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-2 text-xs text-slate-600">{new Date(h.timestamp).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-sm">
+                        {student ? (
+                          <span className="flex flex-col">
+                            <span className="font-medium">{student.name}</span>
+                            <span className="font-mono text-[11px] text-slate-500">{student.studentId}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-sm">{h.oldStatus ? <StatusBadge status={h.oldStatus} /> : <span className="text-slate-400">—</span>}</td>
+                      <td className="px-3 py-2 text-sm font-medium"><StatusBadge status={h.newStatus} /></td>
+                      <td className="px-3 py-2 text-sm">{h.changedBy.name}</td>
+                      <td className="px-3 py-2 text-xs"><Badge tone="violet">{h.changedBy.role}</Badge></td>
+                      <td className="px-3 py-2 text-sm text-slate-600">
+                        {h.reason}
+                        {h.relatedChangeRequest && (
+                          <span className="mt-1 block text-[11px] text-slate-500">
+                            Request #{h.relatedChangeRequest.id.slice(0, 8)} · {h.relatedChangeRequest.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {h.changeType === "INITIAL_ENTRY" ? (
+                          <Badge>Initial</Badge>
+                        ) : h.viaApproval ? (
+                          <Badge tone="violet">Approval</Badge>
+                        ) : (
+                          <Badge tone="amber">Direct</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Table>
+            )}
+          </section>
+        </div>
+      )}
+    </Dialog>
+  );
+}
