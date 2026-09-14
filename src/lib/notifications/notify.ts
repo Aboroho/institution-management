@@ -5,7 +5,7 @@ import { sendEmail } from "./email";
 import { sendSms } from "./sms";
 import { logger } from "@/lib/logging/logger";
 
-interface NotifyInput {
+export interface NotifyInput {
   recipientIds: string[];
   type: NotificationType;
   title: string;
@@ -13,6 +13,25 @@ interface NotifyInput {
   resourceType?: string;
   resourceId?: string;
   channels?: NotificationChannel[]; // default IN_APP only; EMAIL/SMS async
+}
+
+/**
+ * Send an in-app (and optionally email/SMS) notification to every active admin.
+ * Approval requests are institution-wide, so the caller should not have to
+ * know which admin accounts exist.
+ */
+export async function notifyAdmins(input: Omit<NotifyInput, "recipientIds">) {
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", isActive: true },
+    select: { id: true },
+  });
+
+  if (admins.length === 0) {
+    logger.warn("no active admins available for notification", { type: input.type });
+    return;
+  }
+
+  await notify({ ...input, recipientIds: admins.map((admin) => admin.id) });
 }
 
 export async function notify(input: NotifyInput) {

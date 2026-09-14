@@ -6,6 +6,7 @@ import { requireAdmin, requireActiveTeacherAssignment } from "@/lib/permissions/
 import { ok, fail, paginated, parsePagination } from "@/lib/api/response";
 import { createChangeRequest, listChangeRequests } from "@/modules/attendance/attendance.service";
 import { prisma } from "@/lib/db/prisma";
+import { notifyAdmins } from "@/lib/notifications/notify";
 import { audit } from "@/lib/audit/audit";
 
 export async function GET(req: NextRequest) {
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
     else if (auth.role !== "ADMIN") { const { AppError } = await import("@/lib/errors/errors"); return fail(new AppError("FORBIDDEN", "You do not have access to this resource", 403)); }
     const created = await createChangeRequest({ ...body, requestedById: auth.userId });
     await audit({ actorUserId: auth.userId, action: "attendanceChangeRequest.create", entityType: "AttendanceChangeRequest", entityId: created.id, newValues: created, ...requestMeta() });
+    await notifyAdmins({
+      type: "PENDING_APPROVAL",
+      title: "Attendance change awaiting approval",
+      message: "A teacher submitted an attendance correction that requires admin approval.",
+      resourceType: "AttendanceChangeRequest",
+      resourceId: created.id,
+    });
     return ok(created, undefined, 201);
   } catch (e) { return fail(e); }
 }

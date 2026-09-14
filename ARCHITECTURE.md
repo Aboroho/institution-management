@@ -33,7 +33,7 @@ Rules:
 | marks | Marks, histories, approvals, `GradingService` |
 | promotions | Eligibility preview + transactional execution, new enrollments |
 | notices | Per-offering announcements (preserved across substitution) |
-| notifications | In-app + async email/SMS. **No push notifications.** |
+| notifications | In-app + async email/SMS. Approval requests notify active admins. **No push notifications.** |
 | reports | Server-side aggregations + dashboards |
 | audit | Immutable audit log |
 

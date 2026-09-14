@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { get, post, qs } from "@/lib/api/client";
 import { PageHeader, Button, Card, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
@@ -15,6 +16,13 @@ export default function AdminNotificationsPage() {
   const { data, error, isLoading, mutate } = useSWR(`notif${query}`, () => get<Row[]>(`/notifications${query}`));
   const items = (data?.data ?? []) as Row[];
 
+  function approvalHref(notification: Row) {
+    if (str(notification.type) !== "PENDING_APPROVAL") return null;
+    if (str(notification.resourceType) === "AttendanceChangeRequest") return "/admin/attendance/approvals";
+    if (str(notification.resourceType) === "AssessmentMarkChangeRequest") return "/admin/marks/approvals";
+    return null;
+  }
+
   async function markRead(id: string) { await post(`/notifications/${id}/read`, {}); await mutate(); }
   async function markAll() { await post("/notifications/read-all", {}); await mutate(); }
 
@@ -27,12 +35,14 @@ export default function AdminNotificationsPage() {
         <EmptyState title="No notifications" />
       ) : (
         <div className="space-y-2">
-          {items.map((n) => (
+          {items.map((n) => {
+            const href = approvalHref(n);
+            return (
             <Card key={str(n.id)} className={`flex items-start gap-3 p-4 ${!n.isRead ? "border-l-4 border-l-brand-500" : ""}`}>
               <span className="rounded-full bg-slate-100 p-2 text-slate-500"><Bell size={16} /></span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold">{str(n.title)}</p>
+                  {href ? <Link href={href} className="font-semibold text-brand-700 hover:underline">{str(n.title)}</Link> : <p className="font-semibold">{str(n.title)}</p>}
                   <Badge tone="blue">{str(n.type)}</Badge>
                 </div>
                 <p className="mt-1 text-sm text-slate-600">{str(n.message)}</p>
@@ -40,7 +50,8 @@ export default function AdminNotificationsPage() {
               </div>
               {!n.isRead && <Button variant="outline" onClick={() => markRead(str(n.id))}>Mark read</Button>}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
