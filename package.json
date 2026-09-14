@@ -7,6 +7,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "predev": "prisma generate",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

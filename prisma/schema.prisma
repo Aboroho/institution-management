@@ -519,22 +519,18 @@ model AttendanceRecord {
 }
 
 model AttendanceChangeLog {
-  id                 String            @id @default(cuid())
-  recordId           String
-  // Denormalized for fast Attendance Report history counts. Maintained by the
-  // attendance service when writing a change log; never updated retroactively.
-  attendanceSessionId String?
-  oldStatus          AttendanceStatus?
-  newStatus          AttendanceStatus
-  changedById        String
-  reason             String
-  createdAt          DateTime          @default(now())
+  id          String            @id @default(cuid())
+  recordId    String
+  oldStatus   AttendanceStatus?
+  newStatus   AttendanceStatus
+  changedById String
+  reason      String
+  createdAt   DateTime          @default(now())
 
   record    AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   changedBy User             @relation("AttendanceChanger", fields: [changedById], references: [id], onDelete: Restrict)
 
   @@index([recordId])
-  @@index([attendanceSessionId])
 }
 
 model AttendanceChangeRequest {

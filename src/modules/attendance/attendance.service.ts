@@ -64,7 +64,6 @@ export async function saveSessionAttendance(opts: {
         await tx.attendanceChangeLog.create({
           data: {
             recordId: rec.id,
-            attendanceSessionId: session.id,
             oldStatus: null,
             newStatus: r.status,
             changedById: opts.actorUserId,
@@ -89,7 +88,6 @@ export async function saveSessionAttendance(opts: {
         await tx.attendanceChangeLog.create({
           data: {
             recordId: existing.id,
-            attendanceSessionId: session.id,
             oldStatus: existing.status,
             newStatus: r.status,
             changedById: opts.actorUserId,
@@ -202,7 +200,6 @@ export async function listAttendanceReport(opts: {
 
   // Count modifications per session: change log rows where oldStatus is set
   // (initial entries have oldStatus=null and are not counted).
-  // Uses the indexed denormalized attendanceSessionId column.
   const changeCounts = await countModificationsBySession(sessionIds);
 
   const items: AttendanceReportItem[] = sessions.map((s) => ({
@@ -224,23 +221,31 @@ export async function listAttendanceReport(opts: {
  * represents a real modification (oldStatus IS NOT NULL). Initial-entry logs
  * (oldStatus IS NULL) are excluded by design — see spec §8.
  *
- * Uses the denormalized `attendanceSessionId` column with an index so this
- * query is O(matched rows) rather than O(records join).
+ * The session of a log is reached through the `record` relation
+ * (AttendanceChangeLog.recordId -> AttendanceRecord.sessionId). That link is the single
+ * source of truth and is always populated; a nullable denormalized copy on the log row
+ * would have to be backfilled or historical sessions would silently report zero updates.
+ * Both sides are indexed (`AttendanceChangeLog.recordId`, `AttendanceRecord`
+ * unique (sessionId, studentId)), and the result set is bounded by the number of
+ * modifications on the requested page, not by the number of records.
  */
 async function countModificationsBySession(sessionIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (sessionIds.length === 0) return counts;
+
   const rows = await prisma.attendanceChangeLog.findMany({
     where: {
       oldStatus: { not: null },
-      attendanceSessionId: { in: sessionIds },
+      record: { sessionId: { in: sessionIds } },
     },
-    select: { attendanceSessionId: true },
+    select: { record: { select: { sessionId: true } } },
   });
-  const m = new Map<string, number>();
-  for (const r of rows) {
-    const sid = r.attendanceSessionId;
-    if (sid) m.set(sid, (m.get(sid) ?? 0) + 1);
+
+  for (const row of rows) {
+    const sessionId = row.record.sessionId;
+    counts.set(sessionId, (counts.get(sessionId) ?? 0) + 1);
   }
-  return m;
+  return counts;
 }
 
 /** Session-scoped change history: every student-level change tied to a session. */
@@ -428,7 +433,6 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
       await tx.attendanceChangeLog.create({
         data: {
           recordId: rec.id,
-          attendanceSessionId: rec.sessionId,
           oldStatus: req.oldStatus,
           newStatus: req.newStatus,
           changedById: opts.reviewedById,
