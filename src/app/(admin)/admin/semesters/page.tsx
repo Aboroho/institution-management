@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, ApiError } from "@/lib/api/client";
 import { useTrades } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Label, FieldError, Spinner, Badge, Breadcrumbs } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Badge, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -36,10 +36,7 @@ export default function SemestersPage() {
       <PageHeader title="Semesters" subtitle="Per-trade, dynamic count — never hardcoded." actions={<Button onClick={() => { setForm({ tradeId }); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
       <div className="mb-4 max-w-xs">
         <Label>Filter by trade</Label>
-        <Select value={tradeId} onChange={(e) => setTradeId(e.target.value)}>
-          <option value="">All trades</option>
-          {trades.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </Select>
+        <SearchableSelect options={trades} value={tradeId} onChange={setTradeId} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load semesters" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No semesters" hint="Create semesters per trade." action={<Button onClick={() => { setForm({ tradeId }); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
@@ -63,10 +60,7 @@ export default function SemestersPage() {
           {dialog?.mode === "create" && (
             <div>
               <Label required>Trade</Label>
-              <Select value={form.tradeId ?? ""} onChange={(e) => setForm({ ...form, tradeId: e.target.value })}>
-                <option value="">Select...</option>
-                {trades.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </Select>
+              <SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v })} clearLabel="Select..." />
             </div>
           )}
           <div><Label required>Number</Label><Input type="number" value={form.number ?? ""} onChange={(e) => setForm({ ...form, number: e.target.value })} /></div>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, del, patch, ApiError } from "@/lib/api/client";
 import { useCourses } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Select, Label, FieldError, Badge, Card } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, ErrorState, Breadcrumbs, SearchableSelect, Label, FieldError, Badge, Card } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -41,7 +41,7 @@ export default function CurriculumDetail({ params }: { params: { id: string } })
       <PageHeader title={`${str(data.name)} (v${str(data.version)})`} subtitle={`${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
       <Card className="mb-4 p-4">
         <div className="flex items-end gap-2">
-          <div className="flex-1"><Label>Add course</Label><Select value={courseId} onChange={(e) => setCourseId(e.target.value)}><option value="">Select...</option>{courses.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</Select></div>
+          <div className="flex-1"><Label>Add course</Label><SearchableSelect options={courses} value={courseId} onChange={setCourseId} clearLabel="Select..." /></div>
           <Button onClick={add} disabled={!courseId}><Plus size={16} /> Add</Button>
         </div>
         <FieldError error={err} />

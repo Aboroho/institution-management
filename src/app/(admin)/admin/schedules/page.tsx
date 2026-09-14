@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, Label, FieldError, Spinner, Breadcrumbs, Card } from "@/components/ui";
+import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Card } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -49,8 +49,8 @@ export default function SchedulesPage() {
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Schedules" }]} />
       <PageHeader title="Schedules" subtitle="Versioned per course offering — history preserved." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New version</Button>} />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
-        <Select value={f.academicYearId ?? ""} onChange={(e) => setFilter("academicYearId", e.target.value)} aria-label="Year"><option value="">All years</option>{years.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
-        <Select value={f.tradeId ?? ""} onChange={(e) => setFilter("tradeId", e.target.value)} aria-label="Trade"><option value="">All trades</option>{trades.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+        <SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setFilter("academicYearId", v)} ariaLabel="Year" clearLabel="All years" placeholder="All years" />
+        <SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setFilter("tradeId", v)} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={f.semesterId ?? ""} onChange={(e) => setFilter("semesterId", e.target.value)} aria-label="Semester"><option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.shiftId ?? ""} onChange={(e) => setFilter("shiftId", e.target.value)} aria-label="Shift"><option value="">All shifts</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.sectionId ?? ""} onChange={(e) => setFilter("sectionId", e.target.value)} aria-label="Section"><option value="">All sections</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
@@ -76,7 +76,7 @@ export default function SchedulesPage() {
       <Dialog open={dialog} title="New schedule version (closes current)" onClose={() => setDialog(false)} wide>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <div><Label required>Course offering</Label><Select value={offeringId} onChange={(e) => setOfferingId(e.target.value)}><option value="">Select...</option>{offerings.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+            <div><Label required>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={setOfferingId} clearLabel="Select..." /></div>
             <div><Label required>Effective from</Label><Input type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} /></div>
           </div>
           {items.map((it, i) => (
