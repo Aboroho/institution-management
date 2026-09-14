@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { validationDetails } from "@/lib/validation/form-errors";
 import { authApi, ApiError } from "@/lib/api/client";
 import { Button, Card, Input, Label, FieldError, Spinner } from "@/components/ui";
 
@@ -22,7 +23,7 @@ function LoginForm() {
   const router = useRouter();
   const next = useSearchParams().get("next");
   const [serverError, setServerError] = useState("");
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Form>({ resolver: zodResolver(schema) });
+  const { register, handleSubmit, setError, formState: { errors, isSubmitting } } = useForm<Form>({ resolver: zodResolver(schema) });
 
   async function onSubmit(values: Form) {
     setServerError("");
@@ -32,6 +33,16 @@ function LoginForm() {
       router.push(data.role === "ADMIN" ? "/admin/dashboard" : data.role === "TEACHER" ? "/teacher/dashboard" : "/student/dashboard");
       router.refresh();
     } catch (e) {
+      if (e instanceof ApiError && e.code === "VALIDATION_ERROR") {
+        const { fieldErrors } = validationDetails(e.details);
+        let focus = true;
+        for (const field of ["email", "password"] as const) {
+          if (fieldErrors[field]) {
+            setError(field, { type: "server", message: fieldErrors[field].join(" ") }, { shouldFocus: focus });
+            focus = false;
+          }
+        }
+      }
       setServerError(e instanceof ApiError ? e.message : "Login failed");
     }
   }
@@ -44,16 +55,16 @@ function LoginForm() {
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Educational Management System</h1>
           <p className="mt-1 text-sm text-slate-500">Sign in to your portal</p>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <Label required>Email</Label>
-            <Input type="email" placeholder="you@institution.edu" autoComplete="username" {...register("email")} />
-            <FieldError error={errors.email?.message} />
+            <Label htmlFor="login-email" required>Email</Label>
+            <Input id="login-email" aria-invalid={!!errors.email} aria-describedby={errors.email ? "login-email-error" : undefined} type="email" placeholder="you@institution.edu" autoComplete="username" {...register("email")} />
+            <FieldError id="login-email-error" error={errors.email?.message} />
           </div>
           <div>
-            <Label required>Password</Label>
-            <Input type="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} />
-            <FieldError error={errors.password?.message} />
+            <Label htmlFor="login-password" required>Password</Label>
+            <Input id="login-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? "login-password-error" : undefined} type="password" placeholder="••••••••" autoComplete="current-password" {...register("password")} />
+            <FieldError id="login-password-error" error={errors.password?.message} />
           </div>
           {serverError && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{serverError}</p>}
           <Button type="submit" disabled={isSubmitting} className="w-full">
