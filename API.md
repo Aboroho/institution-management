@@ -32,6 +32,8 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET/PATCH/DELETE | /students/{id} | self / ADMIN (DELETE: ADMIN only) |
 | GET | /students/{id}/attendance, /students/{id}/marks | self / ADMIN |
 | GET/POST | /enrollments | ADMIN |
+| GET | /enrollments/next-roll?sectionId= | ADMIN (next free roll number in the section) |
+| PATCH | /enrollments/{id} | ADMIN (correct a roll number) |
 | POST | /enrollments/{id}/close | ADMIN |
 | POST | /promotions/preview, /promotions/execute | ADMIN |
 | GET | /promotions/history | ADMIN |
@@ -66,9 +68,15 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 Scoping: teachers must hold an ACTIVE assignment on the offering; students must own the
 record / be actively enrolled in the offering. Violations return 403 (IDOR protection).
 
-Student enrollments receive a required database-generated `rollNumber`. It is unique within
-a section (`sectionId + rollNumber`) and is returned by student, enrollment, section, and
-course-offering student responses. `DELETE /students/{id}` is restricted to admins and
+Student enrollments require an administrator-supplied `rollNumber`. It is unique within a
+section (`sectionId + rollNumber`), so the same number may exist in a different section but
+not twice in one section. Enrolling without it returns 422, a duplicate inside the section
+returns 409 with a field error on `rollNumber`
+(`GET /api/v1/enrollments/next-roll?sectionId=` suggests the next free number), and
+`PATCH /api/v1/enrollments/{id}` corrects a mistyped roll number (audit-logged). Roll numbers
+are also returned by student, enrollment, section, and course-offering student responses.
+Promotion and repetition create enrollments server-side and take the next free number in the
+destination section. `DELETE /students/{id}` is restricted to admins and
 permanently removes only an unused student account; records with academic history return a
 conflict so the student can be deactivated instead.
 

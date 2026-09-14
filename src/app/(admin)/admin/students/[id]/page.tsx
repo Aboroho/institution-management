@@ -65,7 +65,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card className="p-5"><p className="text-sm text-slate-500">Status</p><p className="mt-1">{data.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</p></Card>
-          <Card className="p-5"><p className="text-sm text-slate-500">Current enrollment</p><p className="mt-1 text-sm font-medium">{current ? `${str((current.academicYear as Row)?.name)} · ${str((current.trade as Row)?.name)} · ${str((current.semester as Row)?.name)} · ${str((current.section as Row)?.name)}` : "None"}</p></Card>
+          <Card className="p-5"><p className="text-sm text-slate-500">Current enrollment</p><p className="mt-1 text-sm font-medium">{current ? `${str((current.academicYear as Row)?.name)} · ${str((current.trade as Row)?.name)} · ${str((current.semester as Row)?.name)} · ${str((current.section as Row)?.name)} · Roll ${str(current.rollNumber)}` : "None"}</p></Card>
           <Card className="p-5"><p className="text-sm text-slate-500">Guardian</p><p className="mt-1 text-sm">{str(data.guardianName ?? "—")} · {str(data.guardianPhone ?? "—")}</p><p className="mt-1 text-sm text-slate-500">Phone: {str(data.phone ?? "—")}</p></Card>
         </div>
       )}

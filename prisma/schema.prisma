@@ -346,8 +346,8 @@ model StudentEnrollment {
   semesterId     String
   shiftId        String
   sectionId      String
-  // Database-generated roll number. The composite constraint below scopes uniqueness to a section.
-  rollNumber     Int              @default(autoincrement())
+  // Required admin-supplied roll number. The composite constraint below scopes uniqueness to a section.
+  rollNumber     Int
   status         EnrollmentStatus @default(ACTIVE)
   enrolledAt     DateTime         @default(now())
   endedAt        DateTime?

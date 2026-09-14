@@ -5,6 +5,7 @@ import { requireAuth, requestMeta } from "@/lib/auth/session";
 import { requireAdmin } from "@/lib/permissions/permissions";
 import { ok, fail, paginated, parsePagination } from "@/lib/api/response";
 import { listEnrollments, createEnrollment } from "@/modules/students/students.service";
+import { rollNumber as rollNumberField } from "@/lib/validation/common";
 import { audit } from "@/lib/audit/audit";
 
 export async function GET(req: NextRequest) {
@@ -26,6 +27,8 @@ export async function GET(req: NextRequest) {
 const schema = z.object({
   studentId: z.string().min(1), academicYearId: z.string().min(1), tradeId: z.string().min(1),
   semesterId: z.string().min(1), shiftId: z.string().min(1), sectionId: z.string().min(1),
+  // Required and unique inside the section (database-enforced).
+  rollNumber: rollNumberField,
 });
 
 export async function POST(req: NextRequest) {
