@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   } catch (e) { return fail(e); }
 }
 
-const schema = z.object({ tradeId: z.string().min(1), semesterId: z.string().min(1), name: z.string().min(1), courseIds: z.array(z.string()).optional() });
+const schema = z.object({ tradeId: z.string().min(1), semesterId: z.string().min(1), name: z.string().min(1), courseIds: z.array(z.string()).optional(), isActive: z.boolean().optional() });
 
 export async function POST(req: NextRequest) {
   try {
