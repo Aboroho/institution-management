@@ -43,8 +43,8 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
         </div>
       )}
       {tab === "students" && (
-        <Table headers={["Student ID", "Name", "Email"]}>
-          {students.map((s) => <tr key={str(s.id)}><td className="px-4 py-3 font-medium">{str(s.studentId)}</td><td className="px-4 py-3">{str((s.user as Row)?.name)}</td><td className="px-4 py-3 text-sm text-slate-500">{str((s.user as Row)?.email)}</td></tr>)}
+        <Table headers={["Roll", "Student ID", "Name", "Email"]}>
+          {students.map((s) => <tr key={str(s.id)}><td className="px-4 py-3 font-medium">{str(s.rollNumber)}</td><td className="px-4 py-3 font-medium">{str(s.studentId)}</td><td className="px-4 py-3">{str((s.user as Row)?.name)}</td><td className="px-4 py-3 text-sm text-slate-500">{str((s.user as Row)?.email)}</td></tr>)}
         </Table>
       )}
       {tab === "teacher" && (

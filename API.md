@@ -29,7 +29,7 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET/PATCH | /course-offerings/{id} | scoped / ADMIN |
 | GET | /course-offerings/{id}/students | scoped |
 | GET/POST | /students | ADMIN |
-| GET/PATCH | /students/{id} | self / ADMIN |
+| GET/PATCH/DELETE | /students/{id} | self / ADMIN (DELETE: ADMIN only) |
 | GET | /students/{id}/attendance, /students/{id}/marks | self / ADMIN |
 | GET/POST | /enrollments | ADMIN |
 | POST | /enrollments/{id}/close | ADMIN |
@@ -65,6 +65,12 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 
 Scoping: teachers must hold an ACTIVE assignment on the offering; students must own the
 record / be actively enrolled in the offering. Violations return 403 (IDOR protection).
+
+Student enrollments receive a required database-generated `rollNumber`. It is unique within
+a section (`sectionId + rollNumber`) and is returned by student, enrollment, section, and
+course-offering student responses. `DELETE /students/{id}` is restricted to admins and
+permanently removes only an unused student account; records with academic history return a
+conflict so the student can be deactivated instead.
 
 ## Status codes
 

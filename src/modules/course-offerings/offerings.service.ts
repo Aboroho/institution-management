@@ -103,9 +103,9 @@ export async function getOffering(id: string) {
       shiftId: o.shiftId, sectionId: o.sectionId, status: "ACTIVE",
     },
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
-    orderBy: { student: { studentId: "asc" } },
+    orderBy: { rollNumber: "asc" },
   });
-  return { ...o, students: enrollments.map((e) => e.student) };
+  return { ...o, students: enrollments.map((e) => ({ ...e.student, rollNumber: e.rollNumber })) };
 }
 
 export async function updateOffering(id: string, data: Partial<{ isActive: boolean; courseId: string }>) {
@@ -127,6 +127,6 @@ export async function offeringStudents(id: string) {
       shiftId: o.shiftId, sectionId: o.sectionId, status: "ACTIVE",
     },
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
-    orderBy: { student: { studentId: "asc" } },
+    orderBy: { rollNumber: "asc" },
   });
 }

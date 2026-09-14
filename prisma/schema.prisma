@@ -346,6 +346,8 @@ model StudentEnrollment {
   semesterId     String
   shiftId        String
   sectionId      String
+  // Database-generated roll number. The composite constraint below scopes uniqueness to a section.
+  rollNumber     Int              @default(autoincrement())
   status         EnrollmentStatus @default(ACTIVE)
   enrolledAt     DateTime         @default(now())
   endedAt        DateTime?
@@ -363,6 +365,7 @@ model StudentEnrollment {
   promotionsTo   StudentPromotion[] @relation("PromotionTo")
 
   @@unique([studentId, academicYearId, semesterId, sectionId])
+  @@unique([sectionId, rollNumber])
   @@index([studentId])
   @@index([academicYearId])
   @@index([tradeId])

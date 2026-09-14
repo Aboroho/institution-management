@@ -46,7 +46,7 @@ export async function evaluateEligibility(opts: {
       });
     const suggested: PromotionDecision = !gradedAll ? "REPEAT" : passedAll ? "PROMOTED" : "REPEAT";
     return {
-      enrollmentId: en.id, studentId: en.studentId,
+      enrollmentId: en.id, studentId: en.studentId, rollNumber: en.rollNumber,
       student: en.student, section: en.section, semester: en.semester,
       perCourse, gradedAll, passedAll, suggested,
     };

@@ -53,7 +53,10 @@ Swap with BullMQ/Redis for multi-instance production (same `enqueue` interface).
 - One active teacher per offering: `TeacherCourseAssignment.activeSlot @unique` (set to offering id while active, null when closed).
 - One attendance session per offering per date; one mark per assessment+student; one submission per assessment+student.
 - Course codes, student IDs (permanent), employee IDs unique.
+- Enrollment roll numbers are database-generated and unique within each section (`sectionId + rollNumber`).
 - Semester unique per trade; section unique per full academic context.
+- Admin student deletion is guarded: accounts with academic history are deactivated instead of
+  deleting records, while unused student accounts can be permanently removed after UI confirmation.
 
 ## Key invariants (service-enforced, no DB change)
 
