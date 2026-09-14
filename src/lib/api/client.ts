@@ -1,4 +1,5 @@
 "use client";
+import { validationMessage } from "@/lib/validation/form-errors";
 // Centralized API client. All UI data flows through here — no scattered fetch calls.
 
 export class ApiError extends Error {
@@ -6,7 +7,7 @@ export class ApiError extends Error {
   status: number;
   details: unknown;
   constructor(code: string, message: string, status: number, details?: unknown) {
-    super(message);
+    super(status >= 500 ? "We couldn’t complete your request. Please try again shortly." : code === "VALIDATION_ERROR" ? validationMessage(details, message) : message);
     this.code = code;
     this.status = status;
     this.details = details;
@@ -17,16 +18,21 @@ async function handle<T>(res: Response): Promise<{ data: T; meta?: Record<string
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     const err = json?.error ?? {};
-    throw new ApiError(err.code || "INTERNAL_ERROR", err.message || `Request failed (${res.status})`, res.status, err.details);
+    throw new ApiError(err.code || "INTERNAL_ERROR", err.message || (res.status === 401 ? "Your session has expired. Please sign in again." : res.status === 403 ? "You don’t have permission to perform this action." : "The request could not be completed. Please try again."), res.status, err.details);
   }
   return json as { data: T; meta?: Record<string, unknown> };
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<{ data: T; meta?: Record<string, unknown> }> {
-  const res = await fetch(`/api/v1${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", "Unable to connect. Check your connection and try again.", 0);
+  }
   return handle<T>(res);
 }
 

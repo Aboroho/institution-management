@@ -29,7 +29,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
     <input
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
@@ -40,7 +40,7 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
     <select
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
@@ -258,19 +258,19 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
     <textarea
       ref={ref}
       {...props}
-      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100", className)}
+      className={cn("w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 aria-[invalid=true]:border-red-500 aria-[invalid=true]:focus:ring-red-100", className)}
     />
   ),
 );
 Textarea.displayName = "Textarea";
 
-export function Label({ children, required }: { children: React.ReactNode; required?: boolean }) {
-  return <label className="mb-1 block text-sm font-medium text-slate-700">{children}{required && <span className="ml-1 text-red-500">*</span>}</label>;
+export function Label({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
+  return <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-slate-700">{children}{required && <span className="ml-1 text-red-500">*</span>}</label>;
 }
 
-export function FieldError({ error }: { error?: string }) {
+export function FieldError({ error, id }: { error?: string; id?: string }) {
   if (!error) return null;
-  return <p className="mt-1 text-xs text-red-600">{error}</p>;
+  return <p id={id} role="alert" className="mt-1 text-xs text-red-600">{error}</p>;
 }
 
 // ---------- Cards / layout ----------
