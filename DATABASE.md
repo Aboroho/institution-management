@@ -44,6 +44,12 @@ Initial entry is not a correction. Teachers get 2 direct corrections per attenda
 and per mark; beyond that a `*ChangeRequest` (PENDING) requires admin approve/reject.
 Approvals run in transactions (update + immutable log + request + audit).
 
+The Attendance Report's per-session update count reads `AttendanceChangeLog` rows with
+`oldStatus IS NOT NULL` and takes each row's session from its related record
+(`AttendanceChangeLog.recordId -> AttendanceRecord.sessionId`). The session link is never
+denormalized onto the log row: a nullable copy would have to be backfilled and would silently
+count pre-existing rows as zero modifications.
+
 ## Curriculum rules (service-enforced, no schema change)
 
 - Only **one active curriculum** per (trade, semester): creating/activating a curriculum
@@ -69,3 +75,13 @@ currently predates a committed initial migration), then run `npm run db:deploy`.
 installations should back up the database and apply
 `20260914220000_add_roll_number_to_student_enrollments` followed by
 `20260915090000_require_admin_supplied_roll_number` with Prisma migrate.
+
+`20260915000000_attendance_report_indexes` added a nullable `AttendanceChangeLog.attendanceSessionId`
+column and `20260915120000_drop_attendance_change_log_session_id` drops it again (both use
+`IF EXISTS`, so applying them in order is a no-op on a database that never had the column).
+
+After any schema change the Prisma Client must be regenerated before the server reads or
+writes the new field, otherwise Prisma rejects the query client-side with
+`Unknown argument ...`. `npm run build` and `npm run dev` both regenerate it (`predev`);
+run `npm run prisma:generate` by hand after editing `prisma/schema.prisma` in a long-lived
+shell.
