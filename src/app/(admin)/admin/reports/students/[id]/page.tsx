@@ -24,9 +24,10 @@ export default function StudentReportPage({ params }: { params: { id: string } }
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="p-5">
           <h2 className="mb-3 font-semibold">Enrollment history</h2>
-          <Table headers={["Year", "Trade", "Semester", "Section", "Status"]}>
+          <Table headers={["Roll", "Year", "Trade", "Semester", "Section", "Status"]}>
             {enrollments.map((e) => (
               <tr key={str(e.id)}>
+                <td className="px-4 py-2 font-medium">{str(e.rollNumber)}</td>
                 <td className="px-4 py-2 text-sm">{str((e.academicYear as Row)?.name)}</td>
                 <td className="px-4 py-2 text-sm">{str((e.trade as Row)?.code)}</td>
                 <td className="px-4 py-2 text-sm">{str((e.semester as Row)?.name)}</td>

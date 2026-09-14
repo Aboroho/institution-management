@@ -68,8 +68,8 @@ function StudentsTab({ offering }: { offering: Row }) {
   const students = (offering.students as Row[] | undefined) ?? [];
   if (!students.length) return <EmptyState title="No enrolled students" />;
   return (
-    <Table headers={["Student ID", "Name", "Email"]}>
-      {students.map((s) => <tr key={str(s.id)}><td className="px-4 py-3 font-medium">{str(s.studentId)}</td><td className="px-4 py-3">{str((s.user as Row)?.name)}</td><td className="px-4 py-3 text-sm text-slate-500">{str((s.user as Row)?.email)}</td></tr>)}
+    <Table headers={["Roll", "Student ID", "Name", "Email"]}>
+      {students.map((s) => <tr key={str(s.id)}><td className="px-4 py-3 font-medium">{str(s.rollNumber)}</td><td className="px-4 py-3 font-medium">{str(s.studentId)}</td><td className="px-4 py-3">{str((s.user as Row)?.name)}</td><td className="px-4 py-3 text-sm text-slate-500">{str((s.user as Row)?.email)}</td></tr>)}
     </Table>
   );
 }
@@ -153,13 +153,14 @@ function AttendanceTab({ offeringId, students }: { offeringId: string; students:
       </Card>
 
       {isLoading ? <LoadingSkeleton /> : students.length === 0 ? <EmptyState title="No students enrolled" /> : (
-        <Table headers={["Student ID", "Name", "Status", "Corrections left", "Actions"]}>
+        <Table headers={["Roll", "Student ID", "Name", "Status", "Corrections left", "Actions"]}>
           {students.map((s) => {
             const sid = str(s.id);
             const ex = existingByStudent.get(sid);
             const left = ex ? Math.max(0, 2 - Number(ex.directCorrections ?? 0)) : 2;
             return (
               <tr key={sid} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium">{str(s.rollNumber)}</td>
                 <td className="px-4 py-3 font-medium">{str(s.studentId)}</td>
                 <td className="px-4 py-3">{str((s.user as Row)?.name)}</td>
                 <td className="px-4 py-3">
@@ -349,13 +350,14 @@ function MarksTab({ offeringId, students }: { offeringId: string; students: Row[
       </Card>
       {!assessmentId ? <EmptyState title="Select an assessment" /> : isLoading ? <LoadingSkeleton /> : (
         <>
-          <Table headers={["Student ID", "Name", "Current", `Enter (max ${assessment ? str(assessment.totalMarks) : ""})`, "Corrections left", "Actions"]}>
+          <Table headers={["Roll", "Student ID", "Name", "Current", `Enter (max ${assessment ? str(assessment.totalMarks) : ""})`, "Corrections left", "Actions"]}>
             {students.map((s) => {
               const sid = str(s.id);
               const m = byStudent.get(sid);
               const left = m ? Math.max(0, 2 - Number(m.directCorrections ?? 0)) : 2;
               return (
                 <tr key={sid}>
+                  <td className="px-4 py-3 font-medium">{str(s.rollNumber)}</td>
                   <td className="px-4 py-3 font-medium">{str(s.studentId)}</td>
                   <td className="px-4 py-3">{str((s.user as Row)?.name)}</td>
                   <td className="px-4 py-3 font-bold">{m ? str(m.marksObtained) : "—"}</td>

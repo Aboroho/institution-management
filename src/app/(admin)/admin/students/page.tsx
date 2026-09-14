@@ -67,11 +67,12 @@ export default function StudentsPage() {
         <EmptyState title="No students" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New student</Button>} />
       ) : (
         <>
-          <Table headers={["Student ID", "Name", "Email", "Current enrollment", "Status"]}>
+          <Table headers={["Roll", "Student ID", "Name", "Email", "Current enrollment", "Status"]}>
             {items.map((r) => {
               const en = (r.enrollments as Row[] | undefined)?.[0];
               return (
                 <tr key={str(r.id)} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium">{str(en?.rollNumber)}</td>
                   <td className="px-4 py-3"><Link href={`/admin/students/${r.id}`} className="font-medium text-brand-600 hover:underline">{str(r.studentId)}</Link></td>
                   <td className="px-4 py-3">{str((r.user as Row)?.name)}</td>
                   <td className="px-4 py-3 text-slate-500">{str((r.user as Row)?.email)}</td>

@@ -10,11 +10,15 @@ export async function listStudents(opts: {
   const where: Record<string, unknown> = {};
   if (opts.isActive !== undefined) where.isActive = opts.isActive;
   if (opts.search) {
-    where.OR = [
+    const searchOr: Record<string, unknown>[] = [
       { studentId: { contains: opts.search, mode: "insensitive" } },
       { user: { name: { contains: opts.search, mode: "insensitive" } } },
       { user: { email: { contains: opts.search, mode: "insensitive" } } },
     ];
+    if (/^\d+$/.test(opts.search.trim())) {
+      searchOr.push({ enrollments: { some: { rollNumber: Number(opts.search.trim()) } } });
+    }
+    where.OR = searchOr;
   }
   const enFilter: Record<string, unknown> = {};
   for (const k of ["academicYearId", "tradeId", "semesterId", "shiftId", "sectionId", "status"] as const) {
@@ -111,6 +115,58 @@ export async function updateStudent(id: string, data: Partial<{
       },
     });
   });
+}
+
+/**
+ * Permanently removes an unused student account. Academic history is intentionally
+ * protected: once an enrollment, promotion, attendance record, submission, or mark
+ * exists, the profile must be deactivated instead of deleting the historical data.
+ */
+export async function deleteStudent(id: string) {
+  const student = await prisma.student.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      userId: true,
+      studentId: true,
+      _count: { select: { enrollments: true, promotions: true, records: true, submissions: true, marks: true } },
+      user: { select: { _count: { select: { filesUploaded: true } } } },
+    },
+  });
+  if (!student) throw notFound("Student not found");
+
+  const blockers = [
+    student._count.enrollments > 0 ? "enrollments" : null,
+    student._count.promotions > 0 ? "promotion history" : null,
+    student._count.records > 0 ? "attendance records" : null,
+    student._count.submissions > 0 ? "assessment submissions" : null,
+    student._count.marks > 0 ? "assessment marks" : null,
+    student.user._count.filesUploaded > 0 ? "uploaded files" : null,
+  ].filter((value): value is string => value !== null);
+
+  if (blockers.length) {
+    throw conflict(
+      `Student cannot be deleted because it has ${blockers.join(", ")}. Deactivate the student instead to preserve academic history.`,
+      { blockers },
+    );
+  }
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.student.delete({ where: { id } });
+      // The account has no remaining student-owned records. Notifications cascade
+      // from the user; audit actor references are configured with SetNull.
+      await tx.user.delete({ where: { id: student.userId } });
+      return { id: student.id, studentId: student.studentId };
+    });
+  } catch (error) {
+    // A dependent record could have been added after the count check. Keep the
+    // historical-data guarantee and expose a useful conflict instead of a 500.
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2003") {
+      throw conflict("Student cannot be deleted because it has related records. Deactivate the student instead to preserve academic history.");
+    }
+    throw error;
+  }
 }
 
 // ---- Enrollments (history preserved; never overwrite to promote)

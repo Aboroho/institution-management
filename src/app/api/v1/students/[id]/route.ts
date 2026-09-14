@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireAuth, requestMeta } from "@/lib/auth/session";
 import { requireAdmin, requireStudentSelf } from "@/lib/permissions/permissions";
 import { ok, fail } from "@/lib/api/response";
-import { getStudent, updateStudent } from "@/modules/students/students.service";
+import { deleteStudent, getStudent, updateStudent } from "@/modules/students/students.service";
 import { audit } from "@/lib/audit/audit";
 
 export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
@@ -29,5 +29,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const updated = await updateStudent(params.id, body);
     await audit({ actorUserId: auth.userId, action: "student.update", entityType: "Student", entityId: params.id, newValues: body, ...requestMeta() });
     return ok(updated);
+  } catch (e) { return fail(e); }
+}
+
+export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const auth = await requireAuth();
+    requireAdmin(auth);
+    const deleted = await deleteStudent(params.id);
+    await audit({
+      actorUserId: auth.userId,
+      action: "student.delete",
+      entityType: "Student",
+      entityId: params.id,
+      oldValues: deleted,
+      ...requestMeta(),
+    });
+    return ok({ id: deleted.id, deleted: true });
   } catch (e) { return fail(e); }
 }

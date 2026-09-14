@@ -26,6 +26,9 @@ File, AuditLog.
 ## Important constraints
 
 - `Course.code`, `Student.studentId` (permanent), `Teacher.employeeId` — unique.
+- `StudentEnrollment.rollNumber` is required and database-generated with a PostgreSQL sequence.
+  `StudentEnrollment` is unique on (sectionId, rollNumber), so roll numbers cannot repeat in
+  a section while remaining available across different sections.
 - `CourseOffering` — unique on (academicYearId, tradeId, semesterId, shiftId, sectionId, courseId).
 - `AttendanceSession` — unique on (courseOfferingId, attendanceDate).
 - `AssessmentMark` — unique on (assessmentId, studentId).
@@ -50,8 +53,16 @@ Approvals run in transactions (update + immutable log + request + audit).
 
 ## Migrations
 
+The roll-number migration backfills existing enrollments from a PostgreSQL sequence before
+making `rollNumber` required, so existing data remains valid:
+
 ```bash
 docker compose up -d db
-npx prisma migrate dev --name init
+npm run db:deploy
 npm run db:seed            # admin + institution (+ demo data with SEED_DEMO=true)
 ```
+
+For a brand-new database, apply the repository's baseline schema first (the repository
+currently predates a committed initial migration), then run `npm run db:deploy`. Existing
+installations should back up the database and apply
+`20260914220000_add_roll_number_to_student_enrollments` with Prisma migrate.

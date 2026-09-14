@@ -64,9 +64,10 @@ export default function EnrollmentsPage() {
         <EmptyState title="No enrollments" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> Enroll student</Button>} />
       ) : (
         <>
-          <Table headers={["Student", "Context", "Section", "Status", "Actions"]}>
+          <Table headers={["Roll", "Student", "Context", "Section", "Status", "Actions"]}>
             {items.map((r) => (
               <tr key={str(r.id)} className="hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium">{str(r.rollNumber)}</td>
                 <td className="px-4 py-3 font-medium">{str(((r.student as Row)?.user as Row)?.name)} <span className="text-xs text-slate-400">{str((r.student as Row)?.studentId)}</span></td>
                 <td className="px-4 py-3 text-sm">{str((r.academicYear as Row)?.name)} · {str((r.trade as Row)?.code)} · {str((r.semester as Row)?.name)} · {str((r.shift as Row)?.name)}</td>
                 <td className="px-4 py-3">{str((r.section as Row)?.name)}</td>
