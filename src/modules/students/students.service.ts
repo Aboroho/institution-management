@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { conflict, notFound, businessRule } from "@/lib/errors/errors";
 import { hashPassword } from "@/lib/auth/password";
+import { nextSectionRollNumber } from "@/modules/students/roll";
 
 export async function listStudents(opts: {
   search?: string; academicYearId?: string; tradeId?: string; semesterId?: string;
@@ -199,8 +200,29 @@ export async function listEnrollments(opts: {
   return { items, total };
 }
 
+/** Field-level conflict details so the enrollment form can highlight the roll input. */
+function rollNumberConflict(sectionName: string, rollNumber: number) {
+  const message = `Roll number ${rollNumber} is already used in section ${sectionName}. Roll numbers must be unique inside a section.`;
+  return conflict(message, { fieldErrors: { rollNumber: [message] }, rollNumber });
+}
+
+function uniqueConstraintFields(error: unknown): string[] {
+  if (typeof error !== "object" || error === null) return [];
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  if (Array.isArray(target)) return target.map(String);
+  return typeof target === "string" ? [target] : [];
+}
+
+/** Highest roll number in use inside a section, so the next one can be suggested. */
+export async function nextAvailableRollNumber(sectionId: string) {
+  const section = await prisma.section.findUnique({ where: { id: sectionId } });
+  if (!section) throw notFound("Section not found");
+  return nextSectionRollNumber(prisma, sectionId);
+}
+
 export async function createEnrollment(data: {
   studentId: string; academicYearId: string; tradeId: string; semesterId: string; shiftId: string; sectionId: string;
+  rollNumber: number;
 }) {
   const student = await prisma.student.findUnique({ where: { id: data.studentId } });
   if (!student) throw notFound("Student not found");
@@ -220,10 +242,41 @@ export async function createEnrollment(data: {
     },
   });
   if (existing) throw conflict("Student already has an active enrollment in this context");
+  // Roll numbers are unique per section. Checked here for a friendly message; the unique
+  // index (sectionId, rollNumber) below is the authority and also covers concurrent inserts.
+  const taken = await prisma.studentEnrollment.findUnique({
+    where: { sectionId_rollNumber: { sectionId: data.sectionId, rollNumber: data.rollNumber } },
+  });
+  if (taken) throw rollNumberConflict(section.name, data.rollNumber);
   try {
     return await prisma.studentEnrollment.create({ data: { ...data, status: "ACTIVE" } });
-  } catch {
+  } catch (error) {
+    if (uniqueConstraintFields(error).includes("rollNumber")) {
+      throw rollNumberConflict(section.name, data.rollNumber);
+    }
     throw conflict("Duplicate enrollment");
+  }
+}
+
+/** Roll numbers stay inside their section; only a typo-level correction is supported. */
+export async function updateEnrollmentRollNumber(id: string, rollNumber: number) {
+  const enrollment = await prisma.studentEnrollment.findUnique({
+    where: { id },
+    include: { section: { select: { id: true, name: true } } },
+  });
+  if (!enrollment) throw notFound("Enrollment not found");
+  if (enrollment.rollNumber === rollNumber) return enrollment;
+  const taken = await prisma.studentEnrollment.findUnique({
+    where: { sectionId_rollNumber: { sectionId: enrollment.sectionId, rollNumber } },
+  });
+  if (taken) throw rollNumberConflict(enrollment.section.name, rollNumber);
+  try {
+    return await prisma.studentEnrollment.update({ where: { id }, data: { rollNumber } });
+  } catch (error) {
+    if (uniqueConstraintFields(error).includes("rollNumber")) {
+      throw rollNumberConflict(enrollment.section.name, rollNumber);
+    }
+    throw error;
   }
 }
 
