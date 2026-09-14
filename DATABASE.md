@@ -40,6 +40,14 @@ Initial entry is not a correction. Teachers get 2 direct corrections per attenda
 and per mark; beyond that a `*ChangeRequest` (PENDING) requires admin approve/reject.
 Approvals run in transactions (update + immutable log + request + audit).
 
+## Curriculum rules (service-enforced, no schema change)
+
+- Only **one active curriculum** per (trade, semester): creating/activating a curriculum
+  deactivates the others of the same trade + semester in a transaction. Older versions
+  stay archived as history.
+- A `CourseOffering` may only reference a course that belongs to the **active curriculum**
+  of its trade + semester (otherwise creation fails with `BUSINESS_RULE`).
+
 ## Migrations
 
 ```bash

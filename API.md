@@ -24,6 +24,7 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET/POST | /trades, /semesters, /shifts, /sections, /courses, /curricula | auth / ADMIN |
 | GET/PATCH | /trades/{id}, /semesters/{id}, /shifts/{id}, /sections/{id}, /courses/{id}, /curricula/{id} | auth / ADMIN |
 | POST/DELETE | /curricula/{id}/courses | ADMIN |
+| GET | /curricula/active?tradeId=&semesterId= | auth (returns the single active curriculum + courses, or null) |
 | GET/POST | /course-offerings | scoped / ADMIN |
 | GET/PATCH | /course-offerings/{id} | scoped / ADMIN |
 | GET | /course-offerings/{id}/students | scoped |

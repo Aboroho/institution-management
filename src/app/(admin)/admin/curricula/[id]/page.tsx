@@ -38,7 +38,7 @@ export default function CurriculumDetail({ params }: { params: { id: string } })
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Curricula", href: "/admin/curricula" }, { label: str(data.name) }]} />
-      <PageHeader title={`${str(data.name)} (v${str(data.version)})`} subtitle={`${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
+      <PageHeader title={`${str(data.name)} (v${str(data.version)})`} subtitle={`${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · Only one curriculum per trade + semester can be active.`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
       <Card className="mb-4 p-4">
         <div className="flex items-end gap-2">
           <div className="flex-1"><Label>Add course</Label><SearchableSelect options={courses} value={courseId} onChange={setCourseId} clearLabel="Select..." /></div>

@@ -55,6 +55,12 @@ Swap with BullMQ/Redis for multi-instance production (same `enqueue` interface).
 - Course codes, student IDs (permanent), employee IDs unique.
 - Semester unique per trade; section unique per full academic context.
 
+## Key invariants (service-enforced, no DB change)
+
+- **Single active curriculum per trade + semester**: activating/creating an active curriculum deactivates all others of the same trade + semester inside a transaction (`courses.service.ts`). At most one curriculum is active; zero is possible (blocks offerings until one is activated).
+- **Offerings restricted to the active curriculum**: `createOffering` (and any future course change on update) rejects a course that is not in the active curriculum of the offering's trade + semester (`assertCourseInActiveCurriculum`), or when no active curriculum exists (`offerings.service.ts`).
+- Frontend mirrors these rules for UX only: the offering dialog loads courses from `GET /api/v1/curricula/active?tradeId=&semesterId=` and disables saving until a curriculum course is selected.
+
 ## Decisions
 
 1. Custom JWT sessions instead of Auth.js: full control over role claims, simple cookie flow, easy to test.

@@ -19,6 +19,7 @@ export default function CurriculaPage() {
   const [dialog, setDialog] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [picked, setPicked] = useState<string[]>([]);
+  const [makeActive, setMakeActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -30,8 +31,8 @@ export default function CurriculaPage() {
   async function save() {
     setSaving(true); setFormError("");
     try {
-      await post("/curricula", { tradeId: form.tradeId, semesterId: form.semesterId, name: form.name, courseIds: picked });
-      setDialog(false); setPicked([]); setForm({}); await mutate();
+      await post("/curricula", { tradeId: form.tradeId, semesterId: form.semesterId, name: form.name, courseIds: picked, isActive: makeActive });
+      setDialog(false); setPicked([]); setForm({}); setMakeActive(true); await mutate();
     } catch (e) { setFormError(e instanceof ApiError ? e.message : "Save failed"); }
     finally { setSaving(false); }
   }
@@ -39,7 +40,7 @@ export default function CurriculaPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Curricula" }]} />
-      <PageHeader title="Curricula" subtitle="Trade + Semester → Courses. New versions preserve history." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Curricula" subtitle="Trade + Semester → Courses. Only one curriculum per trade + semester can be active; older versions are kept for history." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid max-w-xl grid-cols-2 gap-2">
         <SearchableSelect options={trades} value={tradeId} onChange={(v) => { setTradeId(v); setSemesterId(""); }} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} aria-label="Semester">
@@ -69,6 +70,11 @@ export default function CurriculaPage() {
             <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           </div>
           <div><Label required>Name</Label><Input value={form.name ?? ""} placeholder="2026 Curriculum" onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={makeActive} onChange={(e) => setMakeActive(e.target.checked)} className="accent-brand-600" />
+            Set as the active curriculum for this trade + semester
+          </label>
+          <p className="-mt-2 text-xs text-slate-500">Only one curriculum can be active per trade + semester. Activating this one deactivates the previous active version. Course offerings are restricted to the active curriculum&apos;s courses.</p>
           <div>
             <Label>Courses</Label>
             <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">

@@ -65,7 +65,9 @@ export async function listCurricula(opts: { tradeId?: string; semesterId?: strin
   });
 }
 
-export async function createCurriculum(data: { tradeId: string; semesterId: string; name: string; courseIds?: string[] }) {
+export async function createCurriculum(data: {
+  tradeId: string; semesterId: string; name: string; courseIds?: string[]; isActive?: boolean;
+}) {
   const sem = await prisma.semester.findUnique({ where: { id: data.semesterId } });
   if (!sem) throw notFound("Semester not found");
   if (sem.tradeId !== data.tradeId) throw businessRule("Semester does not belong to the selected trade");
@@ -74,9 +76,17 @@ export async function createCurriculum(data: { tradeId: string; semesterId: stri
     orderBy: { version: "desc" },
   });
   const version = (latest?.version ?? 0) + 1;
+  const isActive = data.isActive ?? true;
   return prisma.$transaction(async (tx) => {
+    // Business rule: only ONE active curriculum per trade + semester.
+    if (isActive) {
+      await tx.curriculum.updateMany({
+        where: { tradeId: data.tradeId, semesterId: data.semesterId, isActive: true },
+        data: { isActive: false },
+      });
+    }
     const cur = await tx.curriculum.create({
-      data: { tradeId: data.tradeId, semesterId: data.semesterId, name: data.name, version },
+      data: { tradeId: data.tradeId, semesterId: data.semesterId, name: data.name, version, isActive },
     });
     if (data.courseIds?.length) {
       await tx.curriculumCourse.createMany({
@@ -85,6 +95,19 @@ export async function createCurriculum(data: { tradeId: string; semesterId: stri
       });
     }
     return cur;
+  });
+}
+
+/** The single active curriculum for a trade + semester (or null if none). */
+export async function getActiveCurriculum(tradeId: string, semesterId: string) {
+  return prisma.curriculum.findFirst({
+    where: { tradeId, semesterId, isActive: true },
+    orderBy: { version: "desc" },
+    include: {
+      trade: { select: { id: true, name: true, code: true } },
+      semester: { select: { id: true, name: true, number: true } },
+      courses: { orderBy: { order: "asc" }, include: { course: true } },
+    },
   });
 }
 
@@ -103,6 +126,17 @@ export async function getCurriculum(id: string) {
 export async function updateCurriculum(id: string, data: Partial<{ name: string; isActive: boolean }>) {
   const existing = await prisma.curriculum.findUnique({ where: { id } });
   if (!existing) throw notFound("Curriculum not found");
+  // Business rule: only ONE active curriculum per trade + semester.
+  // Activating this one deactivates every other curriculum of the same trade + semester.
+  if (data.isActive === true) {
+    return prisma.$transaction(async (tx) => {
+      await tx.curriculum.updateMany({
+        where: { tradeId: existing.tradeId, semesterId: existing.semesterId, isActive: true, id: { not: id } },
+        data: { isActive: false },
+      });
+      return tx.curriculum.update({ where: { id }, data });
+    });
+  }
   return prisma.curriculum.update({ where: { id }, data });
 }
 
