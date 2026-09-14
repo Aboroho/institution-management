@@ -219,7 +219,7 @@ export function SearchableSelect({
               }}
               placeholder={ariaLabel ? `Search ${ariaLabel}...` : "Search..."}
               aria-label={ariaLabel ? `Search ${ariaLabel}` : "Search options"}
-              className="w-full border-0 bg-transparent py-2 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              className="w-full  bg-transparent py-2  text-sm text-slate-700 outline-none placeholder:text-slate-400 focus-visible:outline-none"
             />
           </div>
           <div role="listbox" aria-label={ariaLabel} className="max-h-60 overflow-y-auto py-1">
