@@ -42,6 +42,9 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET/POST | /schedules | scoped / ADMIN |
 | GET | /schedules/history?courseOfferingId= | scoped |
 | GET/POST | /attendance/sessions | scoped teacher+admin |
+| GET | /course-offerings/{id}/attendance/sessions | scoped teacher+admin (paginated, date-filtered, server-side summary + update count) |
+| GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (student attendance for one session) |
+| GET | /attendance/sessions/{sessionId}/history | scoped teacher+admin (immutable change log + related change requests) |
 | GET | /attendance/records/{id} | teacher+admin |
 | GET/POST | /attendance/change-requests | ADMIN / scoped |
 | POST | /attendance/change-requests/{id}/approve, .../reject | ADMIN |

@@ -1,9 +1,23 @@
 import { prisma } from "@/lib/db/prisma";
 import { conflict, notFound, businessRule, approvalRequired } from "@/lib/errors/errors";
 import type { AttendanceStatus } from "@prisma/client";
+import {
+  TEACHER_EDIT_WINDOW_DAYS,
+  TEACHER_DIRECT_CORRECTIONS,
+  DEFAULT_ATTENDANCE_PAGE_SIZE,
+  MAX_ATTENDANCE_PAGE_SIZE,
+  type AttendanceSessionSummary,
+  type AttendanceReportItem,
+  type AttendanceHistoryPayload,
+} from "./attendance.types";
 
-export const TEACHER_EDIT_WINDOW_DAYS = 7;
-export const TEACHER_DIRECT_CORRECTIONS = 2;
+export {
+  TEACHER_EDIT_WINDOW_DAYS,
+  TEACHER_DIRECT_CORRECTIONS,
+  DEFAULT_ATTENDANCE_PAGE_SIZE,
+  MAX_ATTENDANCE_PAGE_SIZE,
+} from "./attendance.types";
+export type { AttendanceSessionSummary, AttendanceReportItem, AttendanceHistoryPayload } from "./attendance.types";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -48,7 +62,14 @@ export async function saveSessionAttendance(opts: {
           data: { sessionId: session.id, studentId: r.studentId, status: r.status, note: r.note },
         });
         await tx.attendanceChangeLog.create({
-          data: { recordId: rec.id, oldStatus: null, newStatus: r.status, changedById: opts.actorUserId, reason: "Initial entry" },
+          data: {
+            recordId: rec.id,
+            attendanceSessionId: session.id,
+            oldStatus: null,
+            newStatus: r.status,
+            changedById: opts.actorUserId,
+            reason: "Initial entry",
+          },
         });
       } else if (existing.status !== r.status || (r.note !== undefined && r.note !== existing.note)) {
         // Modification path with limits for teachers.
@@ -67,8 +88,12 @@ export async function saveSessionAttendance(opts: {
         });
         await tx.attendanceChangeLog.create({
           data: {
-            recordId: existing.id, oldStatus: existing.status, newStatus: r.status,
-            changedById: opts.actorUserId, reason: opts.reason ?? (opts.isAdmin ? "Admin correction" : "Correction"),
+            recordId: existing.id,
+            attendanceSessionId: session.id,
+            oldStatus: existing.status,
+            newStatus: r.status,
+            changedById: opts.actorUserId,
+            reason: opts.reason ?? (opts.isAdmin ? "Admin correction" : "Correction"),
           },
         });
       }
@@ -103,6 +128,239 @@ export async function listSessions(courseOfferingId: string, opts: { from?: Date
     where, orderBy: { attendanceDate: "desc" },
     include: { records: true },
   });
+}
+
+/**
+ * Dedicated Attendance Report listing.
+ *
+ * Server-side pagination + date filtering. Summaries are aggregated in the DB
+ * (groupBy on AttendanceRecord) so we never load every record for a course.
+ * Update count is the number of AttendanceChangeLog entries for the session's
+ * records where `oldStatus` is not null (initial entry has oldStatus=null).
+ */
+export async function listAttendanceReport(opts: {
+  courseOfferingId: string;
+  from?: Date;
+  to?: Date;
+  page?: number;
+  pageSize?: number;
+  sort?: "attendanceDate";
+  order?: "asc" | "desc";
+}) {
+  const courseOfferingId = opts.courseOfferingId;
+  const page = Math.max(1, Math.floor(opts.page ?? 1));
+  const requestedSize = Math.floor(opts.pageSize ?? DEFAULT_ATTENDANCE_PAGE_SIZE);
+  const pageSize = Math.min(MAX_ATTENDANCE_PAGE_SIZE, Math.max(1, requestedSize));
+  const order = opts.order === "asc" ? "asc" : "desc";
+  const sort = opts.sort ?? "attendanceDate";
+
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (opts.from) dateFilter.gte = startOfDay(opts.from);
+  if (opts.to) dateFilter.lte = startOfDay(opts.to);
+
+  const sessionWhere: Record<string, unknown> = { courseOfferingId };
+  if (dateFilter.gte || dateFilter.lte) sessionWhere.attendanceDate = dateFilter;
+
+  const [total, sessions] = await prisma.$transaction([
+    prisma.attendanceSession.count({ where: sessionWhere }),
+    prisma.attendanceSession.findMany({
+      where: sessionWhere,
+      orderBy: { [sort]: order },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: { id: true, courseOfferingId: true, attendanceDate: true, createdById: true, createdAt: true, updatedAt: true },
+    }),
+  ]);
+
+  if (sessions.length === 0) {
+    return { items: [] as AttendanceReportItem[], total, page, pageSize };
+  }
+
+  const sessionIds = sessions.map((s) => s.id);
+
+  // Aggregate summary counts by status per session in a single query.
+  const grouped = await prisma.attendanceRecord.groupBy({
+    by: ["sessionId", "status"],
+    where: { sessionId: { in: sessionIds } },
+    _count: { _all: true },
+  });
+
+  const summaries = new Map<string, AttendanceSessionSummary>();
+  for (const g of grouped) {
+    let s = summaries.get(g.sessionId);
+    if (!s) {
+      s = { total: 0, present: 0, absent: 0, late: 0, excused: 0 };
+      summaries.set(g.sessionId, s);
+    }
+    const c = g._count._all;
+    s.total += c;
+    if (g.status === "PRESENT") s.present = c;
+    else if (g.status === "ABSENT") s.absent = c;
+    else if (g.status === "LATE") s.late = c;
+    else if (g.status === "EXCUSED") s.excused = c;
+  }
+
+  // Count modifications per session: change log rows where oldStatus is set
+  // (initial entries have oldStatus=null and are not counted).
+  // Uses the indexed denormalized attendanceSessionId column.
+  const changeCounts = await countModificationsBySession(sessionIds);
+
+  const items: AttendanceReportItem[] = sessions.map((s) => ({
+    id: s.id,
+    courseOfferingId: s.courseOfferingId,
+    attendanceDate: dateOnlyISO(s.attendanceDate),
+    createdById: s.createdById,
+    createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
+    summary: summaries.get(s.id) ?? { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
+    updateCount: changeCounts.get(s.id) ?? 0,
+  }));
+
+  return { items, total, page, pageSize };
+}
+
+/**
+ * Returns the count of AttendanceChangeLog rows per sessionId where the change
+ * represents a real modification (oldStatus IS NOT NULL). Initial-entry logs
+ * (oldStatus IS NULL) are excluded by design — see spec §8.
+ *
+ * Uses the denormalized `attendanceSessionId` column with an index so this
+ * query is O(matched rows) rather than O(records join).
+ */
+async function countModificationsBySession(sessionIds: string[]): Promise<Map<string, number>> {
+  const rows = await prisma.attendanceChangeLog.findMany({
+    where: {
+      oldStatus: { not: null },
+      attendanceSessionId: { in: sessionIds },
+    },
+    select: { attendanceSessionId: true },
+  });
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const sid = r.attendanceSessionId;
+    if (sid) m.set(sid, (m.get(sid) ?? 0) + 1);
+  }
+  return m;
+}
+
+/** Session-scoped change history: every student-level change tied to a session. */
+export async function getSessionHistory(sessionId: string) {
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      courseOffering: { select: { id: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
+    },
+  });
+  if (!session) throw notFound("Attendance session not found");
+
+  const records = await prisma.attendanceRecord.findMany({
+    where: { sessionId },
+    select: {
+      id: true,
+      status: true,
+      directCorrections: true,
+      student: {
+        select: {
+          id: true,
+          studentId: true,
+          user: { select: { name: true, email: true } },
+        },
+      },
+    },
+    orderBy: { student: { studentId: "asc" } },
+  });
+
+  const recordIds = records.map((r) => r.id);
+
+  // Pull logs and approved requests in parallel.
+  const [logs, approvedRequests] = await Promise.all([
+    prisma.attendanceChangeLog.findMany({
+      where: { recordId: { in: recordIds } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        changedBy: { select: { id: true, name: true, email: true, role: true } },
+      },
+    }),
+    prisma.attendanceChangeRequest.findMany({
+      where: { recordId: { in: recordIds }, status: { in: ["APPROVED", "PENDING", "REJECTED"] } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        requestedBy: { select: { id: true, name: true, email: true, role: true } },
+        reviewedBy: { select: { id: true, name: true, email: true, role: true } },
+      },
+    }),
+  ]);
+
+  // Annotate each change-log row with a changeType and whether it was approval-based.
+  const requestByRecordOldNew = new Map<string, typeof approvedRequests[number]>();
+  for (const r of approvedRequests) {
+    // Most-recent request for that recordId + (oldStatus,newStatus) tuple.
+    const key = `${r.recordId}:${r.oldStatus}->${r.newStatus}`;
+    if (!requestByRecordOldNew.has(key)) requestByRecordOldNew.set(key, r);
+  }
+
+  const annotated = logs.map((l) => {
+    const key = `${l.recordId}:${l.oldStatus}->${l.newStatus}`;
+    const req = requestByRecordOldNew.get(key);
+    // A change was "approval-based" if a corresponding change-request exists
+    // (regardless of its final status) — admin approvals and rejections both
+    // originate from a request.
+    return {
+      id: l.id,
+      recordId: l.recordId,
+      oldStatus: l.oldStatus,
+      newStatus: l.newStatus,
+      reason: l.reason,
+      timestamp: l.createdAt.toISOString(),
+      changedBy: {
+        id: l.changedBy.id,
+        name: l.changedBy.name,
+        email: l.changedBy.email,
+        role: l.changedBy.role,
+      },
+      changeType: l.oldStatus == null ? "INITIAL_ENTRY" : "CORRECTION",
+      viaApproval: Boolean(req),
+      relatedChangeRequest: req
+        ? {
+            id: req.id,
+            status: req.status,
+            requestedBy: { id: req.requestedBy.id, name: req.requestedBy.name, role: req.requestedBy.role },
+            reviewedBy: req.reviewedBy
+              ? { id: req.reviewedBy.id, name: req.reviewedBy.name, role: req.reviewedBy.role }
+              : null,
+            reviewedAt: req.reviewedAt?.toISOString() ?? null,
+            reviewNote: req.reviewNote ?? null,
+          }
+        : null,
+    };
+  });
+
+  const studentInfo = records.map((r) => ({
+    recordId: r.id,
+    studentId: r.student.studentId,
+    name: r.student.user.name,
+    email: r.student.user.email,
+    currentStatus: r.status,
+    directCorrections: r.directCorrections,
+  }));
+
+  return {
+    session: {
+      id: session.id,
+      attendanceDate: dateOnlyISO(session.attendanceDate),
+      courseOffering: session.courseOffering,
+    },
+    students: studentInfo,
+    history: annotated,
+  };
+}
+
+function dateOnlyISO(d: Date): string {
+  // Returns yyyy-mm-dd without timezone drift.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export async function recordHistory(recordId: string) {
@@ -168,7 +426,14 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
       if (rec.status !== req.oldStatus) throw conflict("Record changed since request was created");
       await tx.attendanceRecord.update({ where: { id: rec.id }, data: { status: req.newStatus } });
       await tx.attendanceChangeLog.create({
-        data: { recordId: rec.id, oldStatus: req.oldStatus, newStatus: req.newStatus, changedById: opts.reviewedById, reason: `Approved: ${req.reason}` },
+        data: {
+          recordId: rec.id,
+          attendanceSessionId: rec.sessionId,
+          oldStatus: req.oldStatus,
+          newStatus: req.newStatus,
+          changedById: opts.reviewedById,
+          reason: `Approved: ${req.reason}`,
+        },
       });
     }
     return tx.attendanceChangeRequest.update({

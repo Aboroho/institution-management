@@ -2,7 +2,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, patch } from "@/lib/api/client";
-import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge, StatusBadge } from "@/components/ui";
+import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, EmptyState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { ClipboardCheck, BarChart3 } from "lucide-react";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -11,7 +12,6 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState("overview");
   const { data, error, isLoading, mutate } = useSWR(`off-${params.id}`, () => get<Row>(`/course-offerings/${params.id}`).then((r) => r.data));
   const { data: assessments } = useSWR(tab === "assessments" ? `off-assess-${params.id}` : null, () => get<Row[]>(`/assessments?courseOfferingId=${params.id}&limit=100`).then((r) => r.data));
-  const { data: sessions } = useSWR(tab === "attendance" ? `off-att-${params.id}` : null, () => get<Row[]>(`/attendance/sessions?courseOfferingId=${params.id}`).then((r) => r.data));
   const { data: notices } = useSWR(tab === "notices" ? `off-not-${params.id}` : null, () => get<Row[]>(`/notices?courseOfferingId=${params.id}&limit=50`).then((r) => r.data));
 
   async function toggle() {
@@ -32,7 +32,7 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings", href: "/admin/course-offerings" }, { label: str((data.course as Row)?.title) }]} />
       <PageHeader title={`${str((data.course as Row)?.title)}`} subtitle={`${str((data.academicYear as Row)?.name)} · ${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)} · Section ${str((data.section as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
-      <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
+      <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Take Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -63,9 +63,38 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
         ))
       )}
       {tab === "attendance" && (
-        <Table headers={["Date", "Records"]}>
-          {(sessions ?? []).map((s) => <tr key={str(s.id)}><td className="px-4 py-3">{str(s.attendanceDate).slice(0, 10)}</td><td className="px-4 py-3">{str(((s.records as Row[]) ?? []).length)}</td></tr>)}
-        </Table>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card className="p-5">
+            <div className="flex items-start gap-3">
+              <span className="rounded-lg bg-brand-50 p-2 text-brand-700"><ClipboardCheck size={20} /></span>
+              <div className="flex-1">
+                <p className="font-semibold">Take Attendance</p>
+                <p className="mt-1 text-sm text-slate-500">Record or update attendance for a specific date.</p>
+                <a
+                  href={`/admin/course-offerings/${params.id}/attendance/take`}
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+                >
+                  Open Take Attendance
+                </a>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-start gap-3">
+              <span className="rounded-lg bg-violet-50 p-2 text-violet-700"><BarChart3 size={20} /></span>
+              <div className="flex-1">
+                <p className="font-semibold">Attendance Report</p>
+                <p className="mt-1 text-sm text-slate-500">Browse historical sessions, view summaries, audit changes.</p>
+                <a
+                  href={`/admin/course-offerings/${params.id}/attendance/report`}
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  Open Attendance Report
+                </a>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
       {tab === "assessments" && (
         <Table headers={["Title", "Type", "Total", "Due"]}>

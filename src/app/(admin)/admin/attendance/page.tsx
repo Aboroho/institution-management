@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, SearchableSelect, Label, Spinner, Breadcrumbs, StatusBadge, Tabs, Card } from "@/components/ui";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -19,15 +19,20 @@ export default function AdminAttendancePage() {
 
 function AttendanceContent() {
   const qp = useSearchParams();
+  const router = useRouter();
   const [tab, setTab] = useState(qp.get("tab") === "approvals" ? "approvals" : "sessions");
   const offerings = useOfferings();
   const [offeringId, setOfferingId] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
 
-  const sessionsQuery = offeringId ? qs({ courseOfferingId: offeringId, from: from || undefined, to: to || undefined }) : null;
-  const { data: sessions, error: sErr, isLoading: sLoad, mutate: sMut } = useSWR(sessionsQuery ? `att-sessions${sessionsQuery}` : null, () => get<Row[]>(`/attendance/sessions${sessionsQuery}`).then((r) => r.data));
-  const { data: reqData, error: rErr, isLoading: rLoad, mutate: rMut } = useSWR(tab === "approvals" ? "att-reqs-pending" : null, () => get<Row[]>("/attendance/change-requests?status=PENDING&limit=50"));
+  const sessionsQuery = offeringId ? qs({ courseOfferingId: offeringId }) : null;
+  const { data: sessions, error: sErr, isLoading: sLoad, mutate: sMut } = useSWR(
+    sessionsQuery ? `att-sessions${sessionsQuery}` : null,
+    () => get<Row[]>(`/attendance/sessions${sessionsQuery}`).then((r) => r.data),
+  );
+  const { data: reqData, error: rErr, isLoading: rLoad, mutate: rMut } = useSWR(
+    tab === "approvals" ? "att-reqs-pending" : null,
+    () => get<Row[]>("/attendance/change-requests?status=PENDING&limit=50"),
+  );
 
   async function review(id: string, approve: boolean) {
     try {
@@ -39,36 +44,52 @@ function AttendanceContent() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Attendance" }]} />
-      <PageHeader title="Attendance" subtitle="Sessions and correction approvals." />
-      <Tabs tabs={[{ id: "sessions", label: "Sessions" }, { id: "approvals", label: "Approvals" }]} active={tab} onChange={setTab} />
+      <PageHeader
+        title="Attendance"
+        subtitle="Pick a course offering to inspect historical sessions, or review pending change requests."
+      />
+      <Tabs
+        tabs={[{ id: "sessions", label: "Sessions" }, { id: "approvals", label: "Approvals" }]}
+        active={tab}
+        onChange={(t) => { setTab(t); router.replace(`/admin/attendance?tab=${t}`); }}
+      />
 
       {tab === "sessions" && (
         <>
           <Card className="mb-4 p-4">
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-              <div className="md:col-span-2"><Label>Course offering</Label><SearchableSelect options={offerings} value={offeringId} onChange={setOfferingId} clearLabel="Select..." /></div>
-              <div><Label>From</Label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
-              <div><Label>To</Label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              <div>
+                <Label>Course offering</Label>
+                <SearchableSelect
+                  options={offerings}
+                  value={offeringId}
+                  onChange={(v) => setOfferingId(v)}
+                  clearLabel="Select a course offering..."
+                />
+              </div>
             </div>
           </Card>
-          {!offeringId ? <EmptyState title="Select a course offering" hint="Attendance sessions will appear here." /> :
-            sLoad ? <LoadingSkeleton /> : sErr ? <ErrorState message="Failed to load sessions" onRetry={() => sMut()} /> : (sessions ?? []).length === 0 ? <EmptyState title="No sessions" /> : (
-            <Table headers={["Date", "Present", "Absent", "Late", "Excused", "Total"]}>
-              {(sessions ?? []).map((s) => {
-                const recs = (s.records as Row[] | undefined) ?? [];
-                const c = (st: string) => recs.filter((r) => str(r.status) === st).length;
-                return (
-                  <tr key={str(s.id)} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">{str(s.attendanceDate).slice(0, 10)}</td>
-                    <td className="px-4 py-3">{c("PRESENT")}</td>
-                    <td className="px-4 py-3">{c("ABSENT")}</td>
-                    <td className="px-4 py-3">{c("LATE")}</td>
-                    <td className="px-4 py-3">{c("EXCUSED")}</td>
-                    <td className="px-4 py-3">{recs.length}</td>
-                  </tr>
-                );
-              })}
-            </Table>
+          {!offeringId ? (
+            <EmptyState
+              title="Select a course offering"
+              hint="Pick a course offering above to open its dedicated Attendance Report."
+            />
+          ) : sLoad ? (
+            <LoadingSkeleton />
+          ) : sErr ? (
+            <ErrorState message="Failed to load sessions" onRetry={() => sMut()} />
+          ) : (
+            <Card className="p-6 text-center">
+              <p className="text-sm text-slate-600">
+                The historical Attendance Report lives at a dedicated URL for this offering.
+              </p>
+              <a
+                href={`/admin/course-offerings/${offeringId}/attendance/report`}
+                className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+              >
+                Open Attendance Report
+              </a>
+            </Card>
           )}
         </>
       )}
