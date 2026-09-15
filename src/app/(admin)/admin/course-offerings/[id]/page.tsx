@@ -5,6 +5,8 @@ import { get, patch } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, EmptyState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
+import { TeacherAssignmentActions } from "@/components/teacher-assignment";
+import { offeringAvailable } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -32,14 +34,34 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings", href: "/admin/course-offerings" }, { label: str((data.course as Row)?.title) }]} />
-      <PageHeader title={`${str((data.course as Row)?.title)}`} subtitle={`${str((data.academicYear as Row)?.name)} · ${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)} · Section ${str((data.section as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
+      <PageHeader
+        title={`${str((data.course as Row)?.title)}`}
+        subtitle={`${str(data.context)} — ${str((data.academicYear as Row)?.name)} · ${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)} · Section ${str((data.section as Row)?.name)}`}
+        actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>}
+      />
       <CourseOfferingBanner offering={data} eyebrow="Course offering" />
       <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-          <Card className="p-5"><p className="text-sm text-slate-500">Status</p><p className="mt-1">{data.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</p></Card>
-          <Card className="p-5"><p className="text-sm text-slate-500">Current teacher</p><p className="mt-1 font-semibold">{active ? str(((active.teacher as Row)?.user as Row)?.name) : "Unassigned"}</p></Card>
+          <Card className="p-5">
+            <p className="text-sm text-slate-500">Status</p>
+            <p className="mt-1">
+              {offeringAvailable(data) ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}
+              {(data.academicYear as Row | undefined)?.isActive === false && (
+                <span className="ml-2 text-xs text-amber-600">Academic year inactive</span>
+              )}
+            </p>
+          </Card>
+          <Card className="p-5">
+            <p className="text-sm text-slate-500">Teacher</p>
+            <p className="mt-1 font-semibold">
+              {active ? str(((active.teacher as Row)?.user as Row)?.name) : <span className="font-normal text-amber-600">Unassigned</span>}
+            </p>
+            <div className="mt-2">
+              <TeacherAssignmentActions offering={data} compact onSaved={() => mutate()} />
+            </div>
+          </Card>
           <Card className="p-5"><p className="text-sm text-slate-500">Students</p><p className="mt-1 text-2xl font-bold">{students.length}</p></Card>
           <Card className="p-5"><p className="text-sm text-slate-500">Sessions</p><p className="mt-1 text-2xl font-bold">{str((data._count as Row)?.sessions ?? 0)}</p></Card>
         </div>
