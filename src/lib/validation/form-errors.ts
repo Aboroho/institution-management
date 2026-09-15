@@ -32,6 +32,24 @@ export interface ValidatableField {
   name: string; label: string; type?: string; required?: boolean;
 }
 
+/** Upper bound accepted for roll numbers; mirrors the API's Zod field in validation/common. */
+export const ROLL_MAX = 999999;
+
+/**
+ * Client-side mirror of the API's roll number rules (src/lib/validation/common.ts).
+ * UX only — the backend stays authoritative and re-validates everything, including
+ * section-scoped uniqueness. Returns the first issue for the raw input, or null.
+ */
+export function rollNumberIssue(raw: unknown): string | null {
+  if (raw == null || String(raw).trim() === "") return "Roll number is required.";
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "Enter a valid number.";
+  if (!Number.isInteger(value)) return "Roll number must be a whole number.";
+  if (value < 1) return "Roll number must be 1 or greater.";
+  if (value > ROLL_MAX) return `Roll number is too large (maximum ${ROLL_MAX}).`;
+  return null;
+}
+
 /** Basic UX checks only. Domain constraints remain enforced by the API. */
 export function validateFields(fields: ValidatableField[], values: Record<string, unknown>): Record<string, string[]> {
   const errors: Record<string, string[]> = {};
