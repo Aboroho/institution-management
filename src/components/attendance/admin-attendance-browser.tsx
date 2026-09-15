@@ -7,79 +7,125 @@
  * selected course offering. No take/edit controls are rendered here (and the
  * API rejects admin writes with 403 as well).
  *
- * The cascade rules and option builders live in
- * `@/modules/attendance/attendance-browser-filters` (pure + unit tested).
  * Dependency model (follows the database relationships — Section and
- * CourseOffering carry the academic context FKs, and Semester is trade-scoped):
+ * CourseOffering carry the academic context FKs):
  *
- *   Academic Year ────────────────────────────┐
- *   Trade ──► Semester (trade-scoped) ────────┼──► Section ──► Course Offering
- *   Shift ────────────────────────────────────┘
+ *   Academic Year ──┐
+ *   Semester (trade-scoped, global list) ──┼──► Section ──► Course Offering
+ *   Shift (global list) ───────────────────┘
  *
- * Year/trade/shift are independent roots; the semester list is narrowed by the
- * chosen trade, sections by the chosen roots, and offerings by the chosen
- * section plus the same roots. Whenever a parent selection changes, dependent
- * values that are no longer valid are cleared so stale selections are never
- * left active.
+ * Year/semester/shift are independent roots; sections are filtered by the
+ * chosen roots; offerings are filtered by section + roots. Whenever a parent
+ * selection changes, dependent values that are no longer valid are cleared
+ * so stale selections are never left active.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
-import { get } from "@/lib/api/client";
+import { get, qs } from "@/lib/api/client";
 import {
   Card, Label, SearchableSelect, EmptyState, LoadingSkeleton, ErrorState,
 } from "@/components/ui";
 import { AttendanceReportList } from "./attendance-report-list";
-import {
-  EMPTY_ATTENDANCE_CONTEXT,
-  offeringsPath,
-  pruneContext,
-  sectionsPath,
-  semestersPath,
-  toOfferingOptions,
-  toSectionOptions,
-  toSemesterOptions,
-  toShiftOptions,
-  toTradeOptions,
-  toYearOptions,
-  withAcademicYear,
-  withSection,
-  withTrade,
-  type AttendanceContext,
-} from "@/modules/attendance/attendance-browser-filters";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
+type Option = { value: string; label: string; search: string };
+
+function toYearOptions(rows: Row[]): Option[] {
+  return rows.map((r) => {
+    const label = str(r.name);
+    return { value: str(r.id), label, search: label.toLowerCase() };
+  });
+}
+
+function toSemesterOptions(rows: Row[]): Option[] {
+  return rows.map((r) => {
+    const trade = r.trade as Row | undefined;
+    const code = trade ? str(trade.code) : "";
+    const label = code ? `${str(r.name)} (${code})` : str(r.name);
+    return {
+      value: str(r.id),
+      label,
+      search: `${str(r.name)} ${trade ? `${str(trade.name)} ${code}` : ""}`.toLowerCase(),
+    };
+  });
+}
+
+function toShiftOptions(rows: Row[]): Option[] {
+  return rows.map((r) => {
+    const label = str(r.name);
+    return { value: str(r.id), label, search: `${label} ${str(r.code)}`.toLowerCase() };
+  });
+}
+
+function toSectionOptions(rows: Row[]): Option[] {
+  return rows.map((r) => {
+    const sem = r.semester as Row | undefined;
+    const shift = r.shift as Row | undefined;
+    // Sections are often just named "A"/"B" — include semester + shift so
+    // identically-named sections across contexts stay distinguishable.
+    const label = `Section ${str(r.name)}${sem ? ` · ${str(sem.name)}` : ""}${shift ? ` · ${str(shift.name)}` : ""}`;
+    return { value: str(r.id), label, search: label.toLowerCase() };
+  });
+}
+
+function toOfferingOptions(rows: Row[]): Option[] {
+  return rows.map((r) => {
+    const course = r.course as Row | undefined;
+    const label = `${str(course?.code)} — ${str(course?.title)}`;
+    return {
+      value: str(r.id),
+      label,
+      search: `${str(course?.code)} ${str(course?.title)}`.toLowerCase(),
+    };
+  });
+}
+
 export function AdminAttendanceBrowser() {
-  const [ctx, setCtx] = useState<AttendanceContext>(EMPTY_ATTENDANCE_CONTEXT);
+  const [yearId, setYearId] = useState("");
+  const [semesterId, setSemesterId] = useState("");
+  const [shiftId, setShiftId] = useState("");
+  const [sectionId, setSectionId] = useState("");
+  const [offeringId, setOfferingId] = useState("");
 
   // ---- Root selectors (independent backend lists)
   const years = useSWR("att-years", () => get<Row[]>("/academic-years?limit=100").then((r) => r.data));
-  const trades = useSWR("att-trades", () => get<Row[]>("/trades?limit=100").then((r) => r.data));
+  const semesters = useSWR("att-semesters", () => get<Row[]>("/semesters").then((r) => r.data));
   const shifts = useSWR("att-shifts", () => get<Row[]>("/shifts").then((r) => r.data));
 
-  // ---- Dependent: semesters are trade-scoped in the database.
-  const semesterQuery = semestersPath(ctx.tradeId);
-  const semesters = useSWR(`att-semesters${semesterQuery}`, () =>
-    get<Row[]>(semesterQuery).then((r) => r.data));
-
   // ---- Dependent: sections filtered by the chosen academic context.
-  const sectionQuery = sectionsPath(ctx);
-  const sections = useSWR(sectionQuery ? `att-sections${sectionQuery}` : null, () =>
-    get<Row[]>(sectionQuery ?? "").then((r) => r.data));
+  const sectionsQuery = yearId
+    ? qs({ limit: 100, academicYearId: yearId, semesterId: semesterId || undefined, shiftId: shiftId || undefined })
+    : null;
+  const sections = useSWR(
+    sectionsQuery ? `att-sections${sectionsQuery}` : null,
+    () => get<Row[]>(`/sections${sectionsQuery}`).then((r) => r.data),
+  );
 
   // ---- Dependent: offerings for the chosen section (+ context narrowing).
-  const offeringQuery = offeringsPath(ctx);
-  const offerings = useSWR(offeringQuery ? `att-offerings${offeringQuery}` : null, () =>
-    get<Row[]>(offeringQuery ?? "").then((r) => r.data));
+  const offeringsQuery = sectionId
+    ? qs({
+        limit: 100,
+        academicYearId: yearId || undefined,
+        semesterId: semesterId || undefined,
+        shiftId: shiftId || undefined,
+        sectionId,
+      })
+    : null;
+  const offerings = useSWR(
+    offeringsQuery ? `att-offerings${offeringsQuery}` : null,
+    () => get<Row[]>(`/course-offerings${offeringsQuery}`).then((r) => r.data),
+  );
 
-  // ---- Dependent: offering context header (course/section/trade/...).
-  const offeringDetail = useSWR(ctx.offeringId ? `att-offering-${ctx.offeringId}` : null, () =>
-    get<Row>(`/course-offerings/${ctx.offeringId}`).then((r) => r.data));
+  // ---- Dependent: offering context header (course/section/shift/...).
+  const offeringDetail = useSWR(
+    offeringId ? `att-offering-${offeringId}` : null,
+    () => get<Row>(`/course-offerings/${offeringId}`).then((r) => r.data),
+  );
 
   const yearOptions = useMemo(() => toYearOptions(years.data ?? []), [years.data]);
-  const tradeOptions = useMemo(() => toTradeOptions(trades.data ?? []), [trades.data]);
   const semesterOptions = useMemo(() => toSemesterOptions(semesters.data ?? []), [semesters.data]);
   const shiftOptions = useMemo(() => toShiftOptions(shifts.data ?? []), [shifts.data]);
   const sectionOptions = useMemo(() => toSectionOptions(sections.data ?? []), [sections.data]);
@@ -87,17 +133,38 @@ export function AdminAttendanceBrowser() {
 
   // ---- Invalidate stale dependents: when a parent changes and the selected
   // child is no longer among the freshly loaded options, clear it (and
-  // everything below it). Lists that have not loaded yet (null) never clear a
-  // selection — only real API data may.
+  // everything below it). Never clear while the child list is still loading.
   useEffect(() => {
-    setCtx((current) =>
-      pruneContext(current, {
-        semesters: semesters.data ? semesterOptions : null,
-        sections: sections.data ? sectionOptions : null,
-        offerings: offerings.data ? offeringOptions : null,
-      }),
-    );
-  }, [semesters.data, semesterOptions, sections.data, sectionOptions, offerings.data, offeringOptions]);
+    if (!sectionId) return;
+    if (sections.isLoading || sections.data === undefined) return;
+    if (!sectionOptions.some((o) => o.value === sectionId)) {
+      setSectionId("");
+      setOfferingId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections.data, sections.isLoading]);
+
+  useEffect(() => {
+    if (!offeringId) return;
+    if (offerings.isLoading || offerings.data === undefined) return;
+    if (!offeringOptions.some((o) => o.value === offeringId)) {
+      setOfferingId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerings.data, offerings.isLoading]);
+
+  function onYear(v: string) {
+    setYearId(v);
+    if (!v) {
+      // Sections require a year — without it the child chain is meaningless.
+      setSectionId("");
+      setOfferingId("");
+    }
+  }
+  function onSection(v: string) {
+    setSectionId(v);
+    setOfferingId("");
+  }
 
   const detail = offeringDetail.data;
   const course = detail?.course as Row | undefined;
@@ -115,8 +182,8 @@ export function AdminAttendanceBrowser() {
             <Label>Academic Year</Label>
             <SearchableSelect
               options={yearOptions}
-              value={ctx.academicYearId}
-              onChange={(v) => setCtx((c) => withAcademicYear(c, v))}
+              value={yearId}
+              onChange={onYear}
               loading={years.isLoading}
               ariaLabel="Academic year"
               clearLabel="Select academic year..."
@@ -125,39 +192,24 @@ export function AdminAttendanceBrowser() {
             />
           </div>
           <div>
-            <Label>Trade</Label>
-            <SearchableSelect
-              options={tradeOptions}
-              value={ctx.tradeId}
-              onChange={(v) => setCtx((c) => withTrade(c, v))}
-              loading={trades.isLoading}
-              ariaLabel="Trade"
-              clearLabel="All trades"
-              placeholder={trades.isLoading ? "Loading trades..." : "All trades"}
-              emptyMessage="No trades available"
-            />
-          </div>
-          <div>
             <Label>Semester</Label>
             <SearchableSelect
               options={semesterOptions}
-              value={ctx.semesterId}
-              onChange={(v) => setCtx((c) => ({ ...c, semesterId: v }))}
+              value={semesterId}
+              onChange={setSemesterId}
               loading={semesters.isLoading}
               ariaLabel="Semester"
               clearLabel="All semesters"
               placeholder={semesters.isLoading ? "Loading semesters..." : "All semesters"}
-              emptyMessage={
-                ctx.tradeId ? "No semesters for the selected trade" : "No semesters available"
-              }
+              emptyMessage="No semesters available"
             />
           </div>
           <div>
             <Label>Shift</Label>
             <SearchableSelect
               options={shiftOptions}
-              value={ctx.shiftId}
-              onChange={(v) => setCtx((c) => ({ ...c, shiftId: v }))}
+              value={shiftId}
+              onChange={setShiftId}
               loading={shifts.isLoading}
               ariaLabel="Shift"
               clearLabel="All shifts"
@@ -169,53 +221,53 @@ export function AdminAttendanceBrowser() {
             <Label>Section</Label>
             <SearchableSelect
               options={sectionOptions}
-              value={ctx.sectionId}
-              onChange={(v) => setCtx((c) => withSection(c, v))}
+              value={sectionId}
+              onChange={onSection}
               loading={sections.isLoading}
-              disabled={!ctx.academicYearId}
+              disabled={!yearId}
               ariaLabel="Section"
               clearLabel="Select section..."
               placeholder={
-                !ctx.academicYearId
+                !yearId
                   ? "Select academic year first"
                   : sections.isLoading
                     ? "Loading sections..."
                     : "Select section..."
               }
               emptyMessage={
-                !ctx.academicYearId ? "Select academic year first" : "No sections available for this selection"
+                !yearId ? "Select academic year first" : "No sections available for this selection"
               }
             />
           </div>
-          <div>
+          <div className="md:col-span-2">
             <Label>Course Offering</Label>
             <SearchableSelect
               options={offeringOptions}
-              value={ctx.offeringId}
-              onChange={(v) => setCtx((c) => ({ ...c, offeringId: v }))}
+              value={offeringId}
+              onChange={setOfferingId}
               loading={offerings.isLoading}
-              disabled={!ctx.sectionId}
+              disabled={!sectionId}
               ariaLabel="Course offering"
               clearLabel="Select course offering..."
               placeholder={
-                !ctx.sectionId
+                !sectionId
                   ? "Select section first"
                   : offerings.isLoading
                     ? "Loading course offerings..."
                     : "Select course offering..."
               }
               emptyMessage={
-                !ctx.sectionId ? "Select section first" : "No course offerings available for this selection"
+                !sectionId ? "Select section first" : "No course offerings available for this selection"
               }
             />
           </div>
         </div>
       </Card>
 
-      {!ctx.offeringId ? (
+      {!offeringId ? (
         <EmptyState
           title="Select a course offering"
-          hint="Choose the academic context above (academic year, trade, semester, shift, section), then pick a course offering to inspect its attendance sessions."
+          hint="Choose the academic context above, then pick a course offering to inspect its attendance sessions."
         />
       ) : offeringDetail.isLoading ? (
         <LoadingSkeleton rows={4} />
@@ -235,7 +287,7 @@ export function AdminAttendanceBrowser() {
                 </p>
               </div>
               <a
-                href={`/admin/course-offerings/${ctx.offeringId}/attendance?tab=report`}
+                href={`/admin/course-offerings/${offeringId}/attendance?tab=report`}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Open dedicated report
@@ -244,12 +296,8 @@ export function AdminAttendanceBrowser() {
           </Card>
 
           <AttendanceReportList
-            offeringId={ctx.offeringId}
-            offeringTitle={[
-              str(course?.title),
-              `Section ${str(section?.name)}`,
-              trade ? str(trade.name) : "",
-            ].filter(Boolean).join(" · ")}
+            offeringId={offeringId}
+            offeringTitle={`${str(course?.title)} · Section ${str(section?.name)}`}
             showEdit={false}
           />
         </div>
