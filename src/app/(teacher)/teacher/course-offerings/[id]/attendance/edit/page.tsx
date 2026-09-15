@@ -52,6 +52,7 @@ function Content({ id }: { id: string }) {
         lockDate
         backHref={`/teacher/course-offerings/${id}/attendance?tab=report`}
         backLabel="Back to Attendance Report"
+        reportHref={`/teacher/course-offerings/${id}/attendance?tab=report`}
       />
     </div>
   );

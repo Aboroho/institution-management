@@ -60,7 +60,11 @@ function Content({ id }: { id: string }) {
       />
       <Tabs tabs={TABS} active={tab} onChange={switchTab} />
       {tab === "take" ? (
-        <AttendanceTakeForm offeringId={id} offering={data} />
+        <AttendanceTakeForm
+          offeringId={id}
+          offering={data}
+          reportHref={`/teacher/course-offerings/${id}/attendance?tab=report`}
+        />
       ) : (
         <AttendanceReportList
           offeringId={id}

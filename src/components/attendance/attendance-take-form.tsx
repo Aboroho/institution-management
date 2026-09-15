@@ -57,6 +57,7 @@ export function AttendanceTakeForm({
   lockDate = false,
   backHref,
   backLabel,
+  reportHref,
 }: {
   offeringId: string;
   /** Optional offering context (title/section/etc.) for the header. */
@@ -65,6 +66,8 @@ export function AttendanceTakeForm({
   lockDate?: boolean;
   backHref?: string;
   backLabel?: string;
+  /** URL for the report where an existing day's attendance can be edited. */
+  reportHref?: string;
 }) {
   const [date, setDate] = useState(initialDate ?? todayStr());
   const [statuses, setStatuses] = useState<Record<string, string>>({});
@@ -123,6 +126,10 @@ export function AttendanceTakeForm({
   }, [students, statuses, session]);
 
   async function save() {
+    if (lockDate && !reason.trim()) {
+      setErr("A reason is required when editing attendance.");
+      return;
+    }
     setSaving(true); setMsg(""); setWarn(""); setErr("");
     try {
       const records = students.map((s) => ({ studentId: str(s.id), status: effective(str(s.id)) }));
@@ -194,6 +201,14 @@ export function AttendanceTakeForm({
         </a>
       )}
       <Card className="mb-4 p-4">
+        {session?.id && !lockDate && (
+          <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            Attendance has been recorded for <strong>{date}</strong>.{" "}
+            <a href={reportHref ?? "#"} className="font-semibold underline hover:text-blue-950">
+              View Attendance Report to edit
+            </a>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           {!lockDate && (
             <>
@@ -237,13 +252,16 @@ export function AttendanceTakeForm({
           >
             Mark all present
           </Button>
-          <Input
-            placeholder="Correction reason (required when changing saved attendance)"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="min-w-[240px] flex-1"
-            aria-label="Correction reason"
-          />
+          {lockDate && (
+            <Input
+              required
+              placeholder="Reason for editing attendance (required)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="min-w-[240px] flex-1"
+              aria-label="Reason for editing attendance"
+            />
+          )}
           <Button onClick={save} disabled={saving || students.length === 0}>
             {saving && <Spinner />} Save attendance
           </Button>
