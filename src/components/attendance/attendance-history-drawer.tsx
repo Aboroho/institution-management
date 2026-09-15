@@ -65,7 +65,7 @@ export function AttendanceHistoryDrawer({
             {data.history.length === 0 ? (
               <EmptyState title="No changes yet" hint="This session has not been modified since it was created." />
             ) : (
-              <Table headers={["Date", "Student", "Previous", "New", "By", "Role", "Reason", "Type"]}>
+              <Table headers={["Date", "Student", "Roll", "Previous", "New", "By", "Role", "Reason", "Type", "Approval"]}>
                 {data.history.map((h) => {
                   const student = data.students.find((s) => s.recordId === h.recordId);
                   return (
@@ -81,18 +81,14 @@ export function AttendanceHistoryDrawer({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
+                      <td className="px-3 py-2 text-sm font-medium">
+                        {student?.rollNumber ?? <span className="text-slate-400">—</span>}
+                      </td>
                       <td className="px-3 py-2 text-sm">{h.oldStatus ? <StatusBadge status={h.oldStatus} /> : <span className="text-slate-400">—</span>}</td>
                       <td className="px-3 py-2 text-sm font-medium"><StatusBadge status={h.newStatus} /></td>
                       <td className="px-3 py-2 text-sm">{h.changedBy.name}</td>
                       <td className="px-3 py-2 text-xs"><Badge tone="violet">{h.changedBy.role}</Badge></td>
-                      <td className="px-3 py-2 text-sm text-slate-600">
-                        {h.reason}
-                        {h.relatedChangeRequest && (
-                          <span className="mt-1 block text-[11px] text-slate-500">
-                            Request #{h.relatedChangeRequest.id.slice(0, 8)} · {h.relatedChangeRequest.status}
-                          </span>
-                        )}
-                      </td>
+                      <td className="px-3 py-2 text-sm text-slate-600">{h.reason}</td>
                       <td className="px-3 py-2 text-xs">
                         {h.changeType === "INITIAL_ENTRY" ? (
                           <Badge>Initial</Badge>
@@ -100,6 +96,21 @@ export function AttendanceHistoryDrawer({
                           <Badge tone="violet">Approval</Badge>
                         ) : (
                           <Badge tone="amber">Direct</Badge>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {h.relatedChangeRequest ? (
+                          <span className="flex flex-col gap-1">
+                            <StatusBadge status={h.relatedChangeRequest.status} />
+                            <span className="text-[11px] text-slate-500">
+                              #{h.relatedChangeRequest.id.slice(0, 8)}
+                              {h.relatedChangeRequest.reviewedBy
+                                ? ` · by ${h.relatedChangeRequest.reviewedBy.name}`
+                                : ""}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
                     </tr>

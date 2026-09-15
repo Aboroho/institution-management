@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireAuth, requestMeta } from "@/lib/auth/session";
 import { requireActiveTeacherAssignment } from "@/lib/permissions/permissions";
+import { forbidden } from "@/lib/errors/errors";
 import { ok, fail } from "@/lib/api/response";
 import { saveSessionAttendance, getSession, listSessions } from "@/modules/attendance/attendance.service";
 import { audit } from "@/lib/audit/audit";

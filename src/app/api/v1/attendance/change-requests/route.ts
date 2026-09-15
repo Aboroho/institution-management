@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireAuth();
     const body = schema.parse(await req.json());
+    // Permission matrix: only teachers submit change requests. Admins review
+    // them (approve/reject) and must never file requests for themselves.
+    if (auth.role !== "TEACHER") {
+      const { AppError } = await import("@/lib/errors/errors");
+      return fail(new AppError("FORBIDDEN", auth.role === "ADMIN" ? "Admins cannot submit attendance change requests. Approve or reject pending requests instead." : "Only assigned teachers can request attendance changes", 403));
+    }
     const rec = await prisma.attendanceRecord.findUnique({ where: { id: body.recordId }, include: { session: true } });
     if (!rec) { const { AppError } = await import("@/lib/errors/errors"); return fail(new AppError("NOT_FOUND", "Attendance record not found", 404)); }
     // Teachers file change requests; admins review them. Admins cannot file

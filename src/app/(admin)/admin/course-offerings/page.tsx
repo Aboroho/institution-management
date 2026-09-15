@@ -4,6 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses, useActiveCurriculum } from "@/components/academic-options";
+import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
@@ -36,10 +37,21 @@ export default function OfferingsPage() {
   const canPickCourse = Boolean(form.tradeId && form.semesterId && activeCurr && currCourses.length > 0);
 
   function setFilter(k: string, v: string) {
-    const nf = { ...f };
-    if (!v) delete nf[k]; else nf[k] = v;
-    if (k === "tradeId") { delete nf.semesterId; delete nf.sectionId; }
+    const nf = applyFilterChange(f, k, v);
     setPage(1); setF(nf);
+  }
+
+  function openCreate() {
+    const defaults = getFilterDefaults(f, {
+      relevantFields: ["academicYearId", "tradeId", "semesterId", "shiftId", "sectionId", "courseId"],
+      validOptions: {
+        semesterId: semesters,
+        sectionId: sections,
+      },
+    });
+    setForm(defaults);
+    setFormError("");
+    setDialog(true);
   }
 
   async function save() {
@@ -54,7 +66,7 @@ export default function OfferingsPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings" }]} />
-      <PageHeader title="Course Offerings" subtitle="Class instances of reusable courses." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Course Offerings" subtitle="Class instances of reusable courses." actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         <SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setFilter("academicYearId", v)} ariaLabel="Year" clearLabel="All years" placeholder="All years" />
         <SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setFilter("tradeId", v)} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
@@ -64,7 +76,7 @@ export default function OfferingsPage() {
         <SearchableSelect options={courses} value={f.courseId ?? ""} onChange={(v) => setFilter("courseId", v)} ariaLabel="Course" clearLabel="All courses" placeholder="All courses" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No course offerings" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
+        <EmptyState title="No course offerings" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
           <Table headers={["Course", "Trade", "Semester", "Shift", "Section", "Teacher", "Status"]}>
@@ -88,11 +100,11 @@ export default function OfferingsPage() {
       )}
       <Dialog open={dialog} title="New course offering" onClose={() => setDialog(false)} wide>
         <div className="grid grid-cols-2 gap-3">
-          <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm({ ...form, academicYearId: v })} clearLabel="Select..." /></div>
-          <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "", sectionId: "", courseId: "" })} clearLabel="Select..." /></div>
-          <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value, sectionId: "", courseId: "" })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm({ ...form, shiftId: e.target.value, sectionId: "" })}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Section</Label><Select value={form.sectionId ?? ""} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}><option value="">Select...</option>{formSections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "academicYearId", v))} clearLabel="Select..." /></div>
+          <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "tradeId", v))} clearLabel="Select..." /></div>
+          <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "semesterId", e.target.value))}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "shiftId", e.target.value))}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Section</Label><Select value={form.sectionId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "sectionId", e.target.value))}><option value="">Select...</option>{formSections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div>
             <Label required>Course</Label>
             {!form.tradeId || !form.semesterId ? (

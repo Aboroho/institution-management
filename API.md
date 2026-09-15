@@ -43,12 +43,14 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | POST | /teacher-assignments/substitute | ADMIN |
 | GET/POST | /schedules | scoped / ADMIN |
 | GET | /schedules/history?courseOfferingId= | scoped |
-| GET/POST | /attendance/sessions | scoped teacher+admin |
+| GET | /attendance/sessions | scoped teacher+admin (read sessions) |
+| POST | /attendance/sessions | assigned TEACHER only (admins are rejected with 403 — they approve change requests instead) |
 | GET | /course-offerings/{id}/attendance/sessions | scoped teacher+admin (paginated, date-filtered, server-side summary + update count) |
-| GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (student attendance for one session) |
+| GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (full section roster + status for one session) |
 | GET | /attendance/sessions/{sessionId}/history | scoped teacher+admin (immutable change log + related change requests) |
-| GET | /attendance/records/{id} | teacher+admin |
-| GET/POST | /attendance/change-requests | ADMIN / scoped |
+| GET | /attendance/records/{id} | scoped teacher+admin |
+| GET | /attendance/change-requests | ADMIN |
+| POST | /attendance/change-requests | assigned TEACHER only |
 | POST | /attendance/change-requests/{id}/approve, .../reject | ADMIN |
 | GET/POST | /assessments | scoped |
 | GET/PATCH | /assessments/{id} | scoped |

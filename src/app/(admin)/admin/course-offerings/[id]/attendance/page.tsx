@@ -44,7 +44,7 @@ function Content({ id }: { id: string }) {
         items={[
           { label: "Course Offerings", href: "/admin/course-offerings" },
           { label: str(course?.title), href: `/admin/course-offerings/${id}` },
-          { label: "Attendance" },
+          { label: "Attendance Report" },
         ]}
       />
       <PageHeader

@@ -1797,6 +1797,37 @@ Actions:
 - reject
 - inspect history
 
+------------------------------------------------------------
+Admin attendance inspection
+------------------------------------------------------------
+
+/admin/attendance
+
+Tabs:
+- Attendance Report (read-only inspection)
+- Approvals (pending teacher change requests)
+
+Report filters (cascade, real API data):
+- academic year
+- trade
+- semester (trade-scoped, so it follows the chosen trade)
+- shift
+- section
+- course offering
+
+Report shows, per session:
+- date
+- total
+- present
+- absent
+- late
+- excused
+- update count (one edit operation = one update; creation is not an update)
+- student status (per student, by roll)
+- change history (immutable)
+
+Admins never take or edit attendance on this route.
+
 ============================================================
 43. ASSESSMENT WORKFLOW
 ============================================================

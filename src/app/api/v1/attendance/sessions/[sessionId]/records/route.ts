@@ -9,11 +9,14 @@ import { notFound } from "@/lib/errors/errors";
 /**
  * GET /api/v1/attendance/sessions/{sessionId}/records
  *
- * Detailed student attendance for a single AttendanceSession. Used by both the
- * "Edit" workflow and the history inspector.
+ * Student Status for a single AttendanceSession: EVERY student enrolled
+ * (ACTIVE) in the offering's section, each annotated with their attendance
+ * status for this session. Students enrolled after the session was taken
+ * (no AttendanceRecord yet) are included with status NOT_MARKED so the
+ * dialog always has the complete section list for frontend roll filtering.
  *
  * Authorization:
- *   ADMIN -> any session
+ *   ADMIN -> any session (institution-wide inspection)
  *   TEACHER -> must be currently assigned to the offering the session belongs to
  *   STUDENT -> forbidden
  */
@@ -35,7 +38,6 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
           },
         },
         records: {
-          orderBy: { student: { studentId: "asc" } },
           include: {
             student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
           },
@@ -51,21 +53,26 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
       return fail(new AppError("FORBIDDEN", "You do not have access to this resource", 403));
     }
 
-    // Roll numbers live on the enrollment (unique per section), not on the
-    // student — resolve them so the status view can show roll order.
+    const o = session.courseOffering;
+    // Complete section roster (never just the recorded subset).
     const enrollments = await prisma.studentEnrollment.findMany({
       where: {
-        sectionId: session.courseOffering.sectionId,
-        studentId: { in: session.records.map((r: { student: { id: string } }) => r.student.id) },
+        academicYearId: o.academicYearId,
+        tradeId: o.tradeId,
+        semesterId: o.semesterId,
+        shiftId: o.shiftId,
+        sectionId: o.sectionId,
+        status: "ACTIVE",
       },
-      select: { studentId: true, rollNumber: true, status: true },
+      include: {
+        student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
+      },
+      orderBy: { rollNumber: "asc" },
     });
-    const rollByStudent = new Map<string, number>();
-    for (const e of enrollments) {
-      if (!rollByStudent.has(e.studentId) || e.status === "ACTIVE") {
-        rollByStudent.set(e.studentId, e.rollNumber);
-      }
-    }
+
+    const recordByStudent = new Map(
+      session.records.map((r: { student: { id: string } }) => [r.student.id, r] as const),
+    );
 
     return ok({
       session: {
@@ -73,16 +80,22 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
         attendanceDate: session.attendanceDate.toISOString().slice(0, 10),
         courseOffering: session.courseOffering,
       },
-      records: session.records.map((r: { id: string; status: string; note: string | null; directCorrections: number; student: { id: string; studentId: string; user: { name: string; email: string } } }) => ({
-        id: r.id,
-        rollNumber: rollByStudent.get(r.student.id) ?? null,
-        studentId: r.student.studentId,
-        studentName: r.student.user.name,
-        studentEmail: r.student.user.email,
-        status: r.status,
-        note: r.note,
-        directCorrections: r.directCorrections,
-      })),
+      records: enrollments.map((e: { rollNumber: number; student: { id: string; studentId: string; user: { name: string; email: string } } }) => {
+        const r = recordByStudent.get(e.student.id) as
+          | { id: string; status: string; note: string | null; directCorrections: number }
+          | undefined;
+        return {
+          id: r?.id ?? null,
+          rollNumber: e.rollNumber,
+          studentId: e.student.studentId,
+          studentName: e.student.user.name,
+          studentEmail: e.student.user.email,
+          status: r?.status ?? "NOT_MARKED",
+          hasRecord: Boolean(r),
+          note: r?.note ?? null,
+          directCorrections: r?.directCorrections ?? 0,
+        };
+      }),
     });
   } catch (e) {
     return fail(e);

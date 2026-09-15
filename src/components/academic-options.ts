@@ -27,7 +27,7 @@ export function useSemesters(tradeId?: string) {
     get<Row[]>(`/semesters${tradeId ? `?tradeId=${tradeId}` : ""}`).then((r) => r.data));
   return (data ?? []).map((r) => {
     const label = str(r.name);
-    return { value: str(r.id), label, search: label.toLowerCase() };
+    return { value: str(r.id), label, search: label.toLowerCase(), tradeId: str(r.tradeId) };
   });
 }
 export function useShifts() {
@@ -42,7 +42,15 @@ export function useSections(f?: { academicYearId?: string; tradeId?: string; sem
   const { data } = useSWR(`opt-sec-${q}`, () => get<Row[]>(`/sections?${q}`).then((r) => r.data));
   return (data ?? []).map((r) => {
     const label = str(r.name);
-    return { value: str(r.id), label, search: label.toLowerCase() };
+    return {
+      value: str(r.id),
+      label,
+      search: label.toLowerCase(),
+      academicYearId: str(r.academicYearId),
+      tradeId: str(r.tradeId),
+      semesterId: str(r.semesterId),
+      shiftId: str(r.shiftId),
+    };
   });
 }
 export function useCourses() {

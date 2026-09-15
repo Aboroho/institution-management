@@ -3,6 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts } from "@/components/academic-options";
+import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 import Link from "next/link";
@@ -28,12 +29,21 @@ export default function SectionsPage() {
   const total = Number((data?.meta as Record<string, unknown> | undefined)?.total ?? items.length);
 
   function setFilter(k: string, v: string) {
-    const nf = { ...f, [k]: v };
-    // Reset dependent selections when parents change.
-    if (k === "tradeId") { delete nf.semesterId; }
+    const nf = applyFilterChange(f, k, v);
     if (["academicYearId", "tradeId", "semesterId", "shiftId"].includes(k)) setPage(1);
-    if (!v) delete nf[k];
     setF(nf);
+  }
+
+  function openCreate() {
+    const defaults = getFilterDefaults(f, {
+      relevantFields: ["academicYearId", "tradeId", "semesterId", "shiftId"],
+      validOptions: {
+        semesterId: semesters,
+      },
+    });
+    setForm(defaults);
+    setFormError("");
+    setDialog({ mode: "create" });
   }
 
   async function save() {
@@ -54,7 +64,7 @@ export default function SectionsPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Sections" }]} />
-      <PageHeader title="Sections" subtitle="A section never mixes years, trades, semesters or shifts." actions={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Sections" subtitle="A section never mixes years, trades, semesters or shifts." actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
         <SearchableSelect options={years} value={f.academicYearId ?? ""} onChange={(v) => setFilter("academicYearId", v)} ariaLabel="Academic year" clearLabel="All years" placeholder="All years" />
         <SearchableSelect options={trades} value={f.tradeId ?? ""} onChange={(v) => setFilter("tradeId", v)} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
@@ -66,7 +76,7 @@ export default function SectionsPage() {
         </Select>
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load sections" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No sections" action={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+        <EmptyState title="No sections" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
           <Table headers={["Section", "Year", "Trade", "Semester", "Shift", "Students", "Status", "Actions"]}>
@@ -93,10 +103,10 @@ export default function SectionsPage() {
           {dialog?.mode === "create" && (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm({ ...form, academicYearId: v })} clearLabel="Select..." /></div>
-                <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "" })} clearLabel="Select..." /></div>
-                <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-                <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm({ ...form, shiftId: e.target.value })}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+                <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "academicYearId", v))} clearLabel="Select..." /></div>
+                <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "tradeId", v))} clearLabel="Select..." /></div>
+                <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "semesterId", e.target.value))}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+                <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "shiftId", e.target.value))}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
               </div>
             </>
           )}

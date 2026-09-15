@@ -6,7 +6,7 @@
  * a date-range filter and History/Edit actions per row.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
@@ -69,6 +69,12 @@ export function AttendanceReportList({
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [studentsFor, setStudentsFor] = useState<string | null>(null);
 
+  // A different offering means a different report: go back to page 1 so the
+  // pager can never sit past the end of the (possibly much shorter) new list.
+  useEffect(() => {
+    setPage(1);
+  }, [offeringId]);
+
   const query = qs({
     page,
     pageSize,
@@ -100,6 +106,7 @@ export function AttendanceReportList({
   }
 
   function openEdit(item: SessionRow) {
+    if (!editBasePath) return;
     router.push(`${editBasePath}?date=${encodeURIComponent(item.attendanceDate)}`);
   }
 
@@ -170,7 +177,7 @@ export function AttendanceReportList({
       ) : items.length === 0 ? (
         <EmptyState title={emptyMessage} hint="Sessions appear here after attendance is taken for this offering." />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 pb-8">
           {items.map((s) => (
             <Card key={s.id} className="p-4">
               <div className="flex flex-wrap items-start gap-4">
@@ -196,7 +203,7 @@ export function AttendanceReportList({
                   <Button variant="outline" onClick={() => setHistoryFor(s.id)}>
                     <History size={16} /> History
                   </Button>
-                  {showEdit && (
+                  {showEdit && editBasePath && (
                     <Button onClick={() => openEdit(s)}>
                       <PencilLine size={16} /> Edit
                     </Button>
