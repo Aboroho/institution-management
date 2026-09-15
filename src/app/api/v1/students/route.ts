@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     requireAdmin(auth);
     const body = schema.parse(await req.json());
     const created = await createStudent(body);
-    await audit({ actorUserId: auth.userId, action: "student.create", entityType: "Student", entityId: created.id, newValues: { studentId: created.studentId, rollNumber: (created as any).enrollment?.rollNumber }, ...requestMeta() });
+    await audit({ actorUserId: auth.userId, action: "student.create", entityType: "Student", entityId: created.id, newValues: { studentId: created.studentId, rollNumber: created.enrollment.rollNumber }, ...requestMeta() });
     return ok(created, undefined, 201);
   } catch (e) { return fail(e); }
 }
