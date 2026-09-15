@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { conflict, notFound, businessRule } from "@/lib/errors/errors";
+import { conflict, notFound, businessRule, forbidden } from "@/lib/errors/errors";
 import type { AttendanceStatus } from "@prisma/client";
 import {
   TEACHER_EDIT_WINDOW_DAYS,
@@ -62,6 +62,10 @@ export type AttendanceSaveResult = {
 /**
  * Upsert a session for a date (exactly one session per offering per date).
  *
+ * TEACHER-ONLY operation. Admins must never take or directly edit attendance
+ * (they approve change requests instead) — the API route enforces this, and
+ * the service rejects admin writes defensively as a second layer.
+ *
  * A teacher record that exhausted its direct corrections is SKIPPED and
  * reported back (so the teacher can file a change request for it) instead of
  * aborting the whole save — previously one at-limit record discarded every
@@ -71,6 +75,9 @@ export async function saveSessionAttendance(opts: {
   courseOfferingId: string; attendanceDate: Date; records: { studentId: string; status: AttendanceStatus; note?: string }[];
   actorUserId: string; isAdmin: boolean; reason?: string;
 }): Promise<AttendanceSaveResult> {
+  if (opts.isAdmin) {
+    throw forbidden("Admins cannot take or edit attendance directly. Review change requests instead.");
+  }
   const offering = await prisma.courseOffering.findUnique({ where: { id: opts.courseOfferingId } });
   if (!offering) throw notFound("Course offering not found");
   const date = startOfDay(opts.attendanceDate);
@@ -276,7 +283,14 @@ export async function getSessionHistory(sessionId: string) {
   const session = await prisma.attendanceSession.findUnique({
     where: { id: sessionId },
     include: {
-      courseOffering: { select: { id: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
+      courseOffering: {
+        select: {
+          id: true,
+          sectionId: true,
+          course: { select: { title: true, code: true } },
+          section: { select: { name: true } },
+        },
+      },
     },
   });
   if (!session) throw notFound("Attendance session not found");
@@ -363,9 +377,26 @@ export async function getSessionHistory(sessionId: string) {
     };
   });
 
+  // Roll numbers live on the enrollment (unique per section), not on the
+  // student — resolve them so history rows can show roll order.
+  const enrollments = await prisma.studentEnrollment.findMany({
+    where: {
+      sectionId: session.courseOffering.sectionId,
+      studentId: { in: records.map((r: { student: { id: string } }) => r.student.id) },
+    },
+    select: { studentId: true, rollNumber: true, status: true },
+  });
+  const rollByStudent = new Map<string, number>();
+  for (const e of enrollments) {
+    if (!rollByStudent.has(e.studentId) || e.status === "ACTIVE") {
+      rollByStudent.set(e.studentId, e.rollNumber);
+    }
+  }
+
   const studentInfo = records.map((r) => ({
     recordId: r.id,
     studentId: r.student.studentId,
+    rollNumber: rollByStudent.get(r.student.id) ?? null,
     name: r.student.user.name,
     email: r.student.user.email,
     currentStatus: r.status,
@@ -376,7 +407,11 @@ export async function getSessionHistory(sessionId: string) {
     session: {
       id: session.id,
       attendanceDate: dateOnlyISO(session.attendanceDate),
-      courseOffering: session.courseOffering,
+      courseOffering: {
+        id: session.courseOffering.id,
+        course: session.courseOffering.course,
+        section: session.courseOffering.section,
+      },
     },
     students: studentInfo,
     history: annotated,

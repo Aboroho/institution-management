@@ -40,8 +40,12 @@ export function AttendanceReportList({
 }: {
   offeringId: string;
   offeringTitle?: string;
-  /** Base path used to navigate to "Edit" for a given session (date appended). */
-  editBasePath: string;
+  /**
+   * Base path used to navigate to "Edit" for a given session (date appended).
+   * Required when showEdit is true; omit for read-only (admin) usage.
+   */
+  editBasePath?: string;
+  /** Admin report is read-only — pass false to hide every Edit action. */
   showEdit?: boolean;
 }) {
   const router = useRouter();
@@ -85,6 +89,7 @@ export function AttendanceReportList({
   }
 
   function openEdit(item: SessionRow) {
+    if (!editBasePath) return;
     router.push(`${editBasePath}?date=${encodeURIComponent(item.attendanceDate)}`);
   }
 
@@ -177,7 +182,7 @@ export function AttendanceReportList({
                   <Button variant="outline" onClick={() => setHistoryFor(s.id)}>
                     <History size={16} /> History
                   </Button>
-                  {showEdit && (
+                  {showEdit && editBasePath && (
                     <Button onClick={() => openEdit(s)}>
                       <PencilLine size={16} /> Edit
                     </Button>

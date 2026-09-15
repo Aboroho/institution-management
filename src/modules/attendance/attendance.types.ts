@@ -55,6 +55,8 @@ export type AttendanceHistoryEntry = {
 export type AttendanceHistoryStudent = {
   recordId: string;
   studentId: string;
+  /** Roll within the offering's section (from enrollment). Null if unresolved. */
+  rollNumber: number | null;
   name: string;
   email: string;
   currentStatus: string;

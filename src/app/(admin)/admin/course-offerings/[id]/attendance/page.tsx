@@ -1,20 +1,21 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState, Tabs } from "@/components/ui";
+import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState } from "@/components/ui";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { AttendanceTakeForm } from "@/components/attendance/attendance-take-form";
 import { AttendanceReportList } from "@/components/attendance/attendance-report-list";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
-const TABS = [
-  { id: "take", label: "Take Attendance" },
-  { id: "report", label: "Attendance Report" },
-];
-
+/**
+ * Admin attendance for one course offering — REPORT ONLY.
+ *
+ * Admins must never see "Take Attendance" and must never edit attendance.
+ * Legacy `?tab=take` URLs are normalized to `?tab=report` so old bookmarks
+ * land on the read-only report instead of a (removed) take form.
+ */
 export default function AdminAttendancePage({ params }: { params: { id: string } }) {
   return (
     <Suspense fallback={<LoadingSkeleton rows={4} />}>
@@ -26,8 +27,13 @@ export default function AdminAttendancePage({ params }: { params: { id: string }
 function Content({ id }: { id: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const initial = searchParams.get("tab") === "report" ? "report" : "take";
-  const [tab, setTab] = useState(initial);
+
+  useEffect(() => {
+    if (searchParams.get("tab") !== "report") {
+      router.replace(`/admin/course-offerings/${id}/attendance?tab=report`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data, error, isLoading } = useSWR(`off-${id}`, () =>
     get<Row>(`/course-offerings/${id}`).then((r) => r.data),
@@ -38,12 +44,6 @@ function Content({ id }: { id: string }) {
 
   const course = data.course as Row | undefined;
   const section = data.section as Row | undefined;
-  const base = `/admin/course-offerings/${id}/attendance`;
-
-  function switchTab(t: string) {
-    setTab(t);
-    router.replace(`${base}?tab=${t}`);
-  }
 
   return (
     <div>
@@ -51,27 +51,18 @@ function Content({ id }: { id: string }) {
         items={[
           { label: "Course Offerings", href: "/admin/course-offerings" },
           { label: str(course?.title), href: `/admin/course-offerings/${id}` },
-          { label: "Attendance" },
+          { label: "Attendance Report" },
         ]}
       />
       <PageHeader
-        title={`Attendance — ${str(course?.title)}`}
-        subtitle={`Section ${str(section?.name)} · Record attendance for a date, or review past sessions, statuses and change history. Admin edits bypass teacher modification limits.`}
+        title={`Attendance Report — ${str(course?.title)}`}
+        subtitle={`Section ${str(section?.name)} · Historical sessions, student statuses and change history. Read-only: admins approve change requests instead of editing attendance.`}
       />
-      <Tabs tabs={TABS} active={tab} onChange={switchTab} />
-      {tab === "take" ? (
-        <AttendanceTakeForm
-          offeringId={id}
-          offering={data}
-          reportHref={`/admin/course-offerings/${id}/attendance?tab=report`}
-        />
-      ) : (
-        <AttendanceReportList
-          offeringId={id}
-          offeringTitle={`${str(course?.title)} · ${str(section?.name)}`}
-          editBasePath={`/admin/course-offerings/${id}/attendance/edit`}
-        />
-      )}
+      <AttendanceReportList
+        offeringId={id}
+        offeringTitle={`${str(course?.title)} · ${str(section?.name)}`}
+        showEdit={false}
+      />
     </div>
   );
 }

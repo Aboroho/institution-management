@@ -31,7 +31,7 @@ function makePayload(overrides: Partial<AttendanceHistoryPayload> = {}): Attenda
       courseOffering: { id: "off-1", course: { title: "Intro to CS", code: "CSC101" }, section: { name: "A" } },
     },
     students: [
-      { recordId: "rec-1", studentId: "STU-001", name: "Rahim", email: "r@school", currentStatus: "PRESENT", directCorrections: 1 },
+      { recordId: "rec-1", studentId: "STU-001", rollNumber: 1023, name: "Rahim", email: "r@school", currentStatus: "PRESENT", directCorrections: 1 },
     ],
     history: [makeEntry()],
     ...overrides,

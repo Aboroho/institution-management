@@ -11,7 +11,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * - one edit touching many records bumps updateCount exactly once
  * - a record that exhausted its direct corrections is skipped (reported back)
  *   instead of aborting the whole edit
- * - teacher corrections require a reason; admins bypass reason + quota
+ * - teacher corrections require a reason
+ * - admins can NEVER take or directly edit attendance (FORBIDDEN) — they act
+ *   only through change-request approval, which is the sole admin path
  * - teachers cannot edit sessions older than the edit window, but may create
  *   a missing historical session
  */
@@ -289,23 +291,25 @@ describe("saveSessionAttendance — correction limits (partial saves)", () => {
     expect(tx.attendanceSession.update).toHaveBeenCalledTimes(1);
   });
 
-  it("lets admins bypass reason and quota without consuming teacher corrections", async () => {
-    const { state } = makeFakeDb({
+  it("rejects admin writes — admins approve change requests instead of editing", async () => {
+    const { state, tx } = makeFakeDb({
       session: existingSession(0, 0),
       records: [rec("sess-1", "stu-1", "PRESENT", 2)],
     });
 
-    const res = await saveSessionAttendance({
-      courseOfferingId: "off-1",
-      attendanceDate: daysAgo(0),
-      records: [{ studentId: "stu-1", status: "ABSENT" }],
-      ...ADMIN,
-    });
+    await expect(
+      saveSessionAttendance({
+        courseOfferingId: "off-1",
+        attendanceDate: daysAgo(0),
+        records: [{ studentId: "stu-1", status: "ABSENT" }],
+        ...ADMIN,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
-    expect(res.updatedCount).toBe(1);
-    expect(res.skipped).toEqual([]);
-    expect(state.records.get("sess-1:stu-1")?.directCorrections).toBe(2);
-    expect(state.session?.updateCount).toBe(1);
+    // Nothing was written.
+    expect(tx.attendanceRecord.update).not.toHaveBeenCalled();
+    expect(tx.attendanceSession.update).not.toHaveBeenCalled();
+    expect(state.records.get("sess-1:stu-1")?.status).toBe("PRESENT");
   });
 });
 
@@ -328,20 +332,34 @@ describe("saveSessionAttendance — teacher edit window", () => {
     ).rejects.toMatchObject({ code: "BUSINESS_RULE" });
   });
 
-  it("lets admins edit old sessions", async () => {
+  it("rejects admin writes even for old sessions (no direct admin editing, ever)", async () => {
     makeFakeDb({
       session: existingSession(30, 1),
       records: [rec("sess-1", "stu-1", "PRESENT")],
     });
 
-    const res = await saveSessionAttendance({
-      courseOfferingId: "off-1",
-      attendanceDate: daysAgo(30),
-      records: [{ studentId: "stu-1", status: "ABSENT" }],
-      ...ADMIN,
-    });
+    await expect(
+      saveSessionAttendance({
+        courseOfferingId: "off-1",
+        attendanceDate: daysAgo(30),
+        records: [{ studentId: "stu-1", status: "ABSENT" }],
+        ...ADMIN,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 
-    expect(res.updatedCount).toBe(1);
+  it("rejects admin creation of a missing session", async () => {
+    const { tx } = makeFakeDb({ session: null });
+
+    await expect(
+      saveSessionAttendance({
+        courseOfferingId: "off-1",
+        attendanceDate: daysAgo(0),
+        records: [{ studentId: "stu-1", status: "PRESENT" }],
+        ...ADMIN,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(tx.attendanceSession.create).not.toHaveBeenCalled();
   });
 });
 
