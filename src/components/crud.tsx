@@ -3,6 +3,7 @@
 // Every value comes from the API — no mock data.
 import React, { useMemo, useState } from "react";
 import { validateFields, validationDetails } from "@/lib/validation/form-errors";
+import { getFilterDefaults } from "@/components/filter-defaults";
 import Link from "next/link";
 import useSWR from "swr";
 import { Plus, Pencil, Search } from "lucide-react";
@@ -87,7 +88,15 @@ export function CrudPage(props: Props) {
   const meta = (data?.meta ?? {}) as { total?: number; page?: number; limit?: number };
   const total = Number(meta.total ?? items.length);
 
-  function openCreate() { setForm({}); setFormError(""); setFieldErrors({}); setDialog({ mode: "create" }); }
+  function openCreate() {
+    const defaults = getFilterDefaults(filterVals, {
+      relevantFields: visibleFields.map((f) => f.name),
+    });
+    setForm(defaults);
+    setFormError("");
+    setFieldErrors({});
+    setDialog({ mode: "create" });
+  }
   function openEdit(row: Record<string, unknown>) {
     const initial: Record<string, unknown> = {};
     for (const f of props.fields) {
