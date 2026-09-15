@@ -6,6 +6,8 @@ import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses, useActiveCurriculum } from "@/components/academic-options";
 import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { TeacherAssignmentActions } from "@/components/teacher-assignment";
+import { offeringAvailable } from "@/lib/course-offering-context";
 import { Plus } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -79,18 +81,25 @@ export default function OfferingsPage() {
         <EmptyState title="No course offerings" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
-          <Table headers={["Course", "Trade", "Semester", "Shift", "Section", "Teacher", "Status"]}>
+          <Table headers={["Course", "Context", "Teacher", "Status", "Assign teacher"]}>
             {items.map((r) => {
-              const teacher = (r.assignments as Row[] | undefined)?.[0];
+              const teacher = (r.assignments as Row[] | undefined)?.find((a) => a.isActive);
+              const available = offeringAvailable(r);
               return (
                 <tr key={str(r.id)} className="hover:bg-slate-50">
-                  <td className="px-4 py-3"><Link href={`/admin/course-offerings/${r.id}`} className="font-medium text-brand-600 hover:underline">{str((r.course as Row)?.title)}</Link><span className="ml-2 text-xs text-slate-400">{str((r.course as Row)?.code)}</span></td>
-                  <td className="px-4 py-3"><Badge tone="blue">{str((r.trade as Row)?.name)}</Badge></td>
-                  <td className="px-4 py-3"><Badge tone="violet">{str((r.semester as Row)?.name)}</Badge></td>
-                  <td className="px-4 py-3"><Badge tone="amber">{str((r.shift as Row)?.name)}</Badge></td>
-                  <td className="px-4 py-3"><Badge tone="green">{str((r.section as Row)?.name)}</Badge></td>
-                  <td className="px-4 py-3">{teacher ? str(((teacher.teacher as Row)?.user as Row)?.name) : <span className="text-amber-600">Unassigned</span>}</td>
-                  <td className="px-4 py-3">{r.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/admin/course-offerings/${r.id}`} className="font-medium text-brand-600 hover:underline">{str((r.course as Row)?.title)}</Link>
+                    <span className="ml-2 text-xs text-slate-400">{str((r.course as Row)?.code)}</span>
+                    <span className="mt-1 block text-xs text-slate-500">
+                      {str((r.trade as Row)?.name)} · {str((r.semester as Row)?.name)} · {str((r.shift as Row)?.name)} · Sec {str((r.section as Row)?.name)} · {str((r.academicYear as Row)?.name)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3"><span className="font-mono text-xs text-brand-700" title="Course offering context code">{str(r.context)}</span></td>
+                  <td className="px-4 py-3">{teacher ? <span className="font-medium text-slate-800">{str(((teacher.teacher as Row)?.user as Row)?.name)}</span> : <span className="text-amber-600">Unassigned</span>}</td>
+                  <td className="px-4 py-3" title={(r.academicYear as Row | undefined)?.isActive === false ? "Academic year is inactive" : undefined}>
+                    {available ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}
+                  </td>
+                  <td className="px-4 py-3"><TeacherAssignmentActions offering={r} compact onSaved={() => mutate()} /></td>
                 </tr>
               );
             })}
@@ -100,7 +109,11 @@ export default function OfferingsPage() {
       )}
       <Dialog open={dialog} title="New course offering" onClose={() => setDialog(false)} wide>
         <div className="grid grid-cols-2 gap-3">
-          <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "academicYearId", v))} clearLabel="Select..." /></div>
+          <div>
+            <Label required>Academic year</Label>
+            <SearchableSelect options={years.filter((y) => y.isActive)} value={form.academicYearId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "academicYearId", v))} clearLabel="Select..." emptyMessage="No active academic years" />
+            <p className="mt-1 text-xs text-slate-500">Only the active academic year(s) accept new offerings.</p>
+          </div>
           <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "tradeId", v))} clearLabel="Select..." /></div>
           <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "semesterId", e.target.value))}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "shiftId", e.target.value))}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
