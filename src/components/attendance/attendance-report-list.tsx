@@ -151,7 +151,7 @@ export function AttendanceReportList({
       ) : items.length === 0 ? (
         <EmptyState title={emptyMessage} hint="Sessions appear here after attendance is taken for this offering." />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 pb-8">
           {items.map((s) => (
             <Card key={s.id} className="p-4">
               <div className="flex flex-wrap items-start gap-4">
