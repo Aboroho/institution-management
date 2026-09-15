@@ -27,9 +27,11 @@ File, AuditLog.
 
 - `Course.code`, `Student.studentId` (permanent), `Teacher.employeeId` — unique.
 - `StudentEnrollment.rollNumber` is required (no database default): the administrator supplies
-  it when enrolling, and system-created enrollments (promotion/repetition) take the next free
-  number in the destination section. `StudentEnrollment` is unique on (sectionId, rollNumber),
-  so roll numbers cannot repeat in a section while remaining available across different sections.
+  it when enrolling or when creating a student (a student cannot exist without a roll number —
+  `POST /api/v1/students` creates the initial enrollment atomically), and system-created
+  enrollments (promotion/repetition) take the next free number in the destination section.
+  `StudentEnrollment` is unique on (sectionId, rollNumber), so roll numbers cannot repeat in a
+  section while remaining available across different sections.
 - `CourseOffering` — unique on (academicYearId, tradeId, semesterId, shiftId, sectionId, courseId).
 - `AttendanceSession` — unique on (courseOfferingId, attendanceDate).
 - `AssessmentMark` — unique on (assessmentId, studentId).

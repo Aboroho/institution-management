@@ -71,17 +71,20 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 Scoping: teachers must hold an ACTIVE assignment on the offering; students must own the
 record / be actively enrolled in the offering. Violations return 403 (IDOR protection).
 
-Student enrollments require an administrator-supplied `rollNumber`. It is unique within a
-section (`sectionId + rollNumber`), so the same number may exist in a different section but
-not twice in one section. Enrolling without it returns 422, a duplicate inside the section
-returns 409 with a field error on `rollNumber`
-(`GET /api/v1/enrollments/next-roll?sectionId=` suggests the next free number), and
-`PATCH /api/v1/enrollments/{id}` corrects a mistyped roll number (audit-logged). Roll numbers
-are also returned by student, enrollment, section, and course-offering student responses.
-Promotion and repetition create enrollments server-side and take the next free number in the
-destination section. `DELETE /students/{id}` is restricted to admins and
-permanently removes only an unused student account; records with academic history return a
-conflict so the student can be deactivated instead.
+A student cannot exist without a roll number. `POST /api/v1/students` now requires the
+full academic context (`academicYearId`, `tradeId`, `semesterId`, `shiftId`, `sectionId`) plus
+`rollNumber`. The backend creates the user, student and initial enrollment atomically; if the
+roll is missing it returns 422 with a `rollNumber` field error, and a duplicate inside the
+section returns 409 with a field error on `rollNumber`
+(`GET /api/v1/enrollments/next-roll?sectionId=` suggests the next free number for the
+enrollment form and the student creation form). `rollNumber` is unique within a section
+(`sectionId + rollNumber`), so the same number may exist in a different section but not twice
+in one section. `PATCH /api/v1/enrollments/{id}` corrects a mistyped roll number
+(audit-logged). Roll numbers are also returned by student, enrollment, section, and
+course-offering student responses. Promotion and repetition create enrollments server-side and
+take the next free number in the destination section. `DELETE /students/{id}` is restricted to
+admins and permanently removes only an unused student account; records with academic history
+return a conflict so the student can be deactivated instead.
 
 ## Status codes
 
