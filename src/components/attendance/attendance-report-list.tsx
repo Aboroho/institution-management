@@ -10,12 +10,13 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
-  Card, Button, Input, LoadingSkeleton, EmptyState, ErrorState, Pagination, Label, Spinner,
+  Card, Button, Input, LoadingSkeleton, EmptyState, ErrorState, Pagination, Label,
 } from "@/components/ui";
 import { get, qs } from "@/lib/api/client";
-import { History, PencilLine, FilterX } from "lucide-react";
+import { History, PencilLine, FilterX, Users } from "lucide-react";
 import { AttendanceDateBadge, weekdayName, monthYearLabel } from "./date-display";
 import { AttendanceHistoryDrawer } from "./attendance-history-drawer";
+import { AttendanceSessionStudentsDialog } from "./attendance-session-students-dialog";
 import type { AttendanceReportItem } from "@/modules/attendance/attendance.types";
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -51,6 +52,7 @@ export function AttendanceReportList({
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
   const [historyFor, setHistoryFor] = useState<string | null>(null);
+  const [studentsFor, setStudentsFor] = useState<string | null>(null);
 
   const query = qs({
     page,
@@ -61,13 +63,14 @@ export function AttendanceReportList({
 
   const { data, error, isLoading, mutate } = useSWR(
     `att-report-${offeringId}-${query}`,
-    () =>
-      get<SessionRow[]>(`/course-offerings/${offeringId}/attendance/sessions${query}`).then((r) => r.data),
+    () => get<SessionRow[]>(`/course-offerings/${offeringId}/attendance/sessions${query}`),
     { keepPreviousData: true },
   );
 
-  const items = (data ?? []) as SessionRow[];
-  const total = Number(((data as unknown) as { meta?: { total?: number } })?.meta?.total ?? 0);
+  // Keep the full response: `data` is the session page and `meta.total` drives
+  // pagination. (Stripping meta here used to pin the pager at "0 records".)
+  const items = (data?.data ?? []) as SessionRow[];
+  const total = Number(data?.meta?.total ?? 0);
   const hasDateFilter = Boolean(appliedFrom || appliedTo);
 
   function applyFilter() {
@@ -168,6 +171,9 @@ export function AttendanceReportList({
                   </dl>
                 </div>
                 <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:flex-col">
+                  <Button variant="outline" onClick={() => setStudentsFor(s.id)}>
+                    <Users size={16} /> Student Status
+                  </Button>
                   <Button variant="outline" onClick={() => setHistoryFor(s.id)}>
                     <History size={16} /> History
                   </Button>
@@ -191,6 +197,12 @@ export function AttendanceReportList({
           onPage={(p) => setPage(p)}
         />
       )}
+
+      <AttendanceSessionStudentsDialog
+        sessionId={studentsFor}
+        open={studentsFor !== null}
+        onClose={() => setStudentsFor(null)}
+      />
 
       <AttendanceHistoryDrawer
         sessionId={historyFor}

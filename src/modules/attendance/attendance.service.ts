@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { conflict, notFound, businessRule, approvalRequired } from "@/lib/errors/errors";
+import { conflict, notFound, businessRule } from "@/lib/errors/errors";
 import type { AttendanceStatus } from "@prisma/client";
 import {
   TEACHER_EDIT_WINDOW_DAYS,
@@ -19,22 +19,58 @@ export {
 } from "./attendance.types";
 export type { AttendanceSessionSummary, AttendanceReportItem, AttendanceHistoryPayload } from "./attendance.types";
 
-function startOfDay(d: Date) {
+/**
+ * Midnight UTC of the given date. Attendance dates are timezone-agnostic
+ * calendar days (stored as Postgres DATE via Prisma, which round-trips them as
+ * UTC-midnight Dates), so all day arithmetic MUST use UTC getters. Using the
+ * server-local timezone here shifted sessions by a day on non-UTC hosts.
+ */
+export function startOfDay(d: Date) {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
+  x.setUTCHours(0, 0, 0, 0);
   return x;
 }
 
-function daysOld(date: Date) {
+export function daysOld(date: Date) {
   const ms = startOfDay(new Date()).getTime() - startOfDay(date).getTime();
   return Math.floor(ms / 86400000);
 }
 
-/** Upsert a session for a date (exactly one session per offering per date). */
+export function dateOnlyISO(d: Date): string {
+  // Returns yyyy-mm-dd without timezone drift.
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export type AttendanceSaveSkipped = {
+  recordId: string;
+  studentId: string;
+  currentStatus: AttendanceStatus;
+  reason: "APPROVAL_REQUIRED";
+};
+
+export type AttendanceSaveResult = {
+  sessionId: string;
+  isNewSession: boolean;
+  createdCount: number;
+  updatedCount: number;
+  skipped: AttendanceSaveSkipped[];
+};
+
+/**
+ * Upsert a session for a date (exactly one session per offering per date).
+ *
+ * A teacher record that exhausted its direct corrections is SKIPPED and
+ * reported back (so the teacher can file a change request for it) instead of
+ * aborting the whole save — previously one at-limit record discarded every
+ * other valid correction in the same edit.
+ */
 export async function saveSessionAttendance(opts: {
   courseOfferingId: string; attendanceDate: Date; records: { studentId: string; status: AttendanceStatus; note?: string }[];
   actorUserId: string; isAdmin: boolean; reason?: string;
-}) {
+}): Promise<AttendanceSaveResult> {
   const offering = await prisma.courseOffering.findUnique({ where: { id: opts.courseOfferingId } });
   if (!offering) throw notFound("Course offering not found");
   const date = startOfDay(opts.attendanceDate);
@@ -53,6 +89,10 @@ export async function saveSessionAttendance(opts: {
       throw businessRule(`Attendance older than ${TEACHER_EDIT_WINDOW_DAYS} days cannot be edited by teachers`);
     }
 
+    let createdCount = 0;
+    let updatedCount = 0;
+    const skipped: AttendanceSaveSkipped[] = [];
+
     for (const r of opts.records) {
       const existing = await tx.attendanceRecord.findUnique({
         where: { sessionId_studentId: { sessionId: session.id, studentId: r.studentId } },
@@ -67,16 +107,23 @@ export async function saveSessionAttendance(opts: {
             oldStatus: null,
             newStatus: r.status,
             changedById: opts.actorUserId,
-            reason: "Initial entry",
+            reason: isNewSession ? "Initial entry" : `Added to existing session${opts.reason ? `: ${opts.reason}` : ""}`,
           },
         });
+        createdCount += 1;
       } else if (existing.status !== r.status || (r.note !== undefined && r.note !== existing.note)) {
         // Modification path with limits for teachers.
         if (!opts.isAdmin) {
-          if (existing.directCorrections >= TEACHER_DIRECT_CORRECTIONS) {
-            throw approvalRequired("Admin approval required", { recordId: existing.id });
-          }
           if (!opts.reason) throw businessRule("Reason is required for attendance correction");
+          if (existing.directCorrections >= TEACHER_DIRECT_CORRECTIONS) {
+            skipped.push({
+              recordId: existing.id,
+              studentId: r.studentId,
+              currentStatus: existing.status,
+              reason: "APPROVAL_REQUIRED",
+            });
+            continue;
+          }
         }
         await tx.attendanceRecord.update({
           where: { id: existing.id },
@@ -94,9 +141,21 @@ export async function saveSessionAttendance(opts: {
             reason: opts.reason ?? (opts.isAdmin ? "Admin correction" : "Correction"),
           },
         });
+        updatedCount += 1;
       }
     }
-    return { sessionId: session.id, isNewSession };
+
+    // One edit operation that changed an EXISTING session counts as exactly one
+    // update, no matter how many student records it touched. Creating the
+    // session (initial entry) is not an update.
+    if (!isNewSession && (createdCount > 0 || updatedCount > 0)) {
+      await tx.attendanceSession.update({
+        where: { id: session.id },
+        data: { updateCount: { increment: 1 } },
+      });
+    }
+
+    return { sessionId: session.id, isNewSession, createdCount, updatedCount, skipped };
   });
 }
 
@@ -133,8 +192,8 @@ export async function listSessions(courseOfferingId: string, opts: { from?: Date
  *
  * Server-side pagination + date filtering. Summaries are aggregated in the DB
  * (groupBy on AttendanceRecord) so we never load every record for a course.
- * Update count is the number of AttendanceChangeLog entries for the session's
- * records where `oldStatus` is not null (initial entry has oldStatus=null).
+ * Update count is the stored per-session edit counter (incremented once per
+ * save/approval that changed the session, initial creation excluded).
  */
 export async function listAttendanceReport(opts: {
   courseOfferingId: string;
@@ -166,7 +225,7 @@ export async function listAttendanceReport(opts: {
       orderBy: { [sort]: order },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      select: { id: true, courseOfferingId: true, attendanceDate: true, createdById: true, createdAt: true, updatedAt: true },
+      select: { id: true, courseOfferingId: true, attendanceDate: true, createdById: true, createdAt: true, updatedAt: true, updateCount: true },
     }),
   ]);
 
@@ -198,10 +257,6 @@ export async function listAttendanceReport(opts: {
     else if (g.status === "EXCUSED") s.excused = c;
   }
 
-  // Count modifications per session: change log rows where oldStatus is set
-  // (initial entries have oldStatus=null and are not counted).
-  const changeCounts = await countModificationsBySession(sessionIds);
-
   const items: AttendanceReportItem[] = sessions.map((s) => ({
     id: s.id,
     courseOfferingId: s.courseOfferingId,
@@ -210,42 +265,10 @@ export async function listAttendanceReport(opts: {
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
     summary: summaries.get(s.id) ?? { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
-    updateCount: changeCounts.get(s.id) ?? 0,
+    updateCount: s.updateCount,
   }));
 
   return { items, total, page, pageSize };
-}
-
-/**
- * Returns the count of AttendanceChangeLog rows per sessionId where the change
- * represents a real modification (oldStatus IS NOT NULL). Initial-entry logs
- * (oldStatus IS NULL) are excluded by design — see spec §8.
- *
- * The session of a log is reached through the `record` relation
- * (AttendanceChangeLog.recordId -> AttendanceRecord.sessionId). That link is the single
- * source of truth and is always populated; a nullable denormalized copy on the log row
- * would have to be backfilled or historical sessions would silently report zero updates.
- * Both sides are indexed (`AttendanceChangeLog.recordId`, `AttendanceRecord`
- * unique (sessionId, studentId)), and the result set is bounded by the number of
- * modifications on the requested page, not by the number of records.
- */
-async function countModificationsBySession(sessionIds: string[]): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (sessionIds.length === 0) return counts;
-
-  const rows = await prisma.attendanceChangeLog.findMany({
-    where: {
-      oldStatus: { not: null },
-      record: { sessionId: { in: sessionIds } },
-    },
-    select: { record: { select: { sessionId: true } } },
-  });
-
-  for (const row of rows) {
-    const sessionId = row.record.sessionId;
-    counts.set(sessionId, (counts.get(sessionId) ?? 0) + 1);
-  }
-  return counts;
 }
 
 /** Session-scoped change history: every student-level change tied to a session. */
@@ -360,14 +383,6 @@ export async function getSessionHistory(sessionId: string) {
   };
 }
 
-function dateOnlyISO(d: Date): string {
-  // Returns yyyy-mm-dd without timezone drift.
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 export async function recordHistory(recordId: string) {
   const rec = await prisma.attendanceRecord.findUnique({
     where: { id: recordId },
@@ -430,6 +445,11 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
     if (opts.approve) {
       if (rec.status !== req.oldStatus) throw conflict("Record changed since request was created");
       await tx.attendanceRecord.update({ where: { id: rec.id }, data: { status: req.newStatus } });
+      // An approved change edits the session, so it counts as one update.
+      await tx.attendanceSession.update({
+        where: { id: rec.sessionId },
+        data: { updateCount: { increment: 1 } },
+      });
       await tx.attendanceChangeLog.create({
         data: {
           recordId: rec.id,

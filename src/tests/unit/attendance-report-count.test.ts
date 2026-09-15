@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Attendance Report — per-session modification counting.
+ * Attendance Report — per-session update counting.
  *
- * The service reaches the database through `@/lib/db/prisma`; the mock below lets us
- * assert the exact queries `listAttendanceReport` issues (the contract with Prisma)
- * without a live PostgreSQL, plus the aggregation the UI renders as "Updated N times".
+ * `updateCount` is a stored counter on AttendanceSession: one edit operation
+ * (save / approved change request) that changed the session counts as exactly
+ * ONE update, no matter how many student records it touched, and the initial
+ * creation is not an update. The report selects the counter directly — it must
+ * never aggregate change-log rows (that inflated one 30-student edit into
+ * "Updated: 30 times").
  *
- * Regression guard: the count must never filter or select on a denormalized
- * `attendanceSessionId` column. No such field exists on `AttendanceChangeLog` (see
- * migration 20260915120000_drop_attendance_change_log_session_id), and querying it makes
- * Prisma reject the call client-side with "Unknown argument `attendanceSessionId`" —
- * which turned GET /api/v1/course-offerings/{id}/attendance/sessions into a 500.
+ * The service reaches the database through `@/lib/db/prisma`; the mock below
+ * lets us assert the exact queries `listAttendanceReport` issues without a
+ * live PostgreSQL.
  */
 
 const { prismaMock } = vi.hoisted(() => ({
@@ -29,7 +30,7 @@ import { listAttendanceReport } from "@/modules/attendance/attendance.service";
 
 const d = (iso: string) => new Date(iso);
 
-function makeSession(id: string, date: string) {
+function makeSession(id: string, date: string, updateCount: number) {
   return {
     id,
     courseOfferingId: "off-1",
@@ -37,85 +38,61 @@ function makeSession(id: string, date: string) {
     createdById: "u-1",
     createdAt: d(`${date}T08:00:00.000Z`),
     updatedAt: d(`${date}T08:05:00.000Z`),
+    updateCount,
   };
 }
 
 /** Wires the mocked database layer for a two-session report page. */
-function stubDb(modifications: { sessionId: string }[]) {
+function stubDb() {
   prismaMock.$transaction.mockImplementation((arg: unknown) =>
     Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => Promise<unknown>)(prismaMock),
   );
   prismaMock.attendanceSession.count.mockResolvedValue(2);
   prismaMock.attendanceSession.findMany.mockResolvedValue([
-    makeSession("s1", "2026-09-15"),
-    makeSession("s2", "2026-09-14"),
+    makeSession("s1", "2026-09-15", 2),
+    makeSession("s2", "2026-09-14", 0),
   ]);
   prismaMock.attendanceRecord.groupBy.mockResolvedValue([
     { sessionId: "s1", status: "PRESENT", _count: { _all: 40 } },
     { sessionId: "s1", status: "ABSENT", _count: { _all: 1 } },
     { sessionId: "s2", status: "PRESENT", _count: { _all: 41 } },
   ]);
-  prismaMock.attendanceChangeLog.findMany.mockResolvedValue(
-    modifications.map((m) => ({ record: { sessionId: m.sessionId } })),
-  );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("Attendance Report — modification count query", () => {
-  it("counts modifications through the AttendanceChangeLog -> record relation", async () => {
-    stubDb([{ sessionId: "s1" }, { sessionId: "s1" }, { sessionId: "s2" }]);
+describe("Attendance Report — update count source", () => {
+  it("selects the stored per-session updateCount column", async () => {
+    stubDb();
+
+    await listAttendanceReport({ courseOfferingId: "off-1", page: 1, pageSize: 20 });
+
+    expect(prismaMock.attendanceSession.findMany).toHaveBeenCalledTimes(1);
+    const select = prismaMock.attendanceSession.findMany.mock.calls[0][0].select;
+    expect(select).toMatchObject({ id: true, updateCount: true });
+  });
+
+  it("reports the stored counter verbatim (one edit = one update)", async () => {
+    stubDb();
 
     const res = await listAttendanceReport({ courseOfferingId: "off-1", page: 1, pageSize: 20 });
 
-    // The sessions on the page are scoped through the relation, and only real
-    // modifications (oldStatus IS NOT NULL) are counted.
-    expect(prismaMock.attendanceChangeLog.findMany).toHaveBeenCalledTimes(1);
-    expect(prismaMock.attendanceChangeLog.findMany).toHaveBeenCalledWith({
-      where: {
-        oldStatus: { not: null },
-        record: { sessionId: { in: ["s1", "s2"] } },
-      },
-      select: { record: { select: { sessionId: true } } },
-    });
-
-    // s1 has two modifications, s2 has one.
-    expect(res.items.map((i) => i.updateCount)).toEqual([2, 1]);
+    // s1 was edited twice, s2 never — regardless of how many student records
+    // each edit touched.
+    expect(res.items.map((i) => i.updateCount)).toEqual([2, 0]);
   });
 
-  it("never references a denormalized attendanceSessionId column", async () => {
-    stubDb([{ sessionId: "s1" }]);
+  it("never aggregates change-log rows for the count", async () => {
+    stubDb();
 
     await listAttendanceReport({ courseOfferingId: "off-1" });
 
-    expect(prismaMock.attendanceChangeLog.findMany.mock.calls.length).toBeGreaterThan(0);
-    for (const call of prismaMock.attendanceChangeLog.findMany.mock.calls) {
-      expect(JSON.stringify(call)).not.toContain("attendanceSessionId");
-    }
+    expect(prismaMock.attendanceChangeLog.findMany).not.toHaveBeenCalled();
   });
 
-  it("reports zero updates when no session was modified", async () => {
-    stubDb([]);
-
-    const res = await listAttendanceReport({ courseOfferingId: "off-1" });
-
-    expect(prismaMock.attendanceChangeLog.findMany).toHaveBeenCalledTimes(1);
-    expect(res.items.map((i) => i.updateCount)).toEqual([0, 0]);
-  });
-
-  it("counts every correction of the same record, not just the record", async () => {
-    // Three change-log rows for one session (e.g. one record corrected twice and
-    // another once) must yield an update count of 3.
-    stubDb([{ sessionId: "s1" }, { sessionId: "s1" }, { sessionId: "s1" }]);
-
-    const res = await listAttendanceReport({ courseOfferingId: "off-1" });
-
-    expect(res.items.map((i) => i.updateCount)).toEqual([3, 0]);
-  });
-
-  it("short-circuits before counting when the page has no sessions", async () => {
+  it("short-circuits before aggregating when the page has no sessions", async () => {
     prismaMock.$transaction.mockImplementation((arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => Promise<unknown>)(prismaMock),
     );
@@ -125,13 +102,14 @@ describe("Attendance Report — modification count query", () => {
     const res = await listAttendanceReport({ courseOfferingId: "off-1" });
 
     expect(res).toMatchObject({ items: [], total: 0, page: 1 });
+    expect(prismaMock.attendanceRecord.groupBy).not.toHaveBeenCalled();
     expect(prismaMock.attendanceChangeLog.findMany).not.toHaveBeenCalled();
   });
 });
 
 describe("Attendance Report — summaries alongside the count", () => {
   it("returns status summaries aggregated in the database", async () => {
-    stubDb([{ sessionId: "s1" }]);
+    stubDb();
 
     const res = await listAttendanceReport({ courseOfferingId: "off-1" });
 

@@ -7,7 +7,8 @@
  * what, when, why, and whether the change was approval-based.
  *
  * Scope: only changes belonging to the selected AttendanceSession. No
- * unrelated history is shown.
+ * unrelated history is shown. Current per-student statuses live in
+ * AttendanceSessionStudentsDialog (a separate action in the session list).
  */
 
 import useSWR from "swr";
@@ -15,7 +16,6 @@ import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Ba
 import { get } from "@/lib/api/client";
 import type { AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
 
-type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
 export function AttendanceHistoryDrawer({
@@ -57,24 +57,6 @@ export function AttendanceHistoryDrawer({
               <span className="text-slate-600">{data.session.attendanceDate}</span>
             </div>
           </div>
-
-          <section>
-            <h3 className="mb-2 text-sm font-semibold text-slate-700">Students in this session</h3>
-            {data.students.length === 0 ? (
-              <EmptyState title="No student records" />
-            ) : (
-              <Table headers={["Student ID", "Name", "Current status", "Direct corrections"]}>
-                {data.students.map((s) => (
-                  <tr key={s.recordId}>
-                    <td className="px-4 py-2 font-mono text-xs">{s.studentId}</td>
-                    <td className="px-4 py-2">{s.name}</td>
-                    <td className="px-4 py-2"><StatusBadge status={s.currentStatus} /></td>
-                    <td className="px-4 py-2 text-sm">{s.directCorrections}</td>
-                  </tr>
-                ))}
-              </Table>
-            )}
-          </section>
 
           <section>
             <h3 className="mb-2 text-sm font-semibold text-slate-700">Change history (immutable)</h3>
