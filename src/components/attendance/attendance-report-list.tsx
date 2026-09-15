@@ -17,7 +17,10 @@ import { History, PencilLine, FilterX, Users } from "lucide-react";
 import { AttendanceDateBadge, weekdayName, monthYearLabel } from "./date-display";
 import { AttendanceHistoryDrawer } from "./attendance-history-drawer";
 import { AttendanceSessionStudentsDialog } from "./attendance-session-students-dialog";
+import { offeringContextLabel } from "@/components/course-offering-context";
 import type { AttendanceReportItem } from "@/modules/attendance/attendance.types";
+
+type Row = Record<string, unknown>;
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -35,13 +38,25 @@ function pluralUpdates(n: number) {
 export function AttendanceReportList({
   offeringId,
   offeringTitle,
+  offering,
   editBasePath,
   showEdit = true,
 }: {
   offeringId: string;
   offeringTitle?: string;
+  /**
+   * Full offering row (course + trade/semester/shift/section). When provided,
+   * every session card names the complete context so staff can verify they are
+   * looking at the right course. Falls back to `offeringTitle` when absent.
+   */
+  offering?: Row;
   /** Base path used to navigate to "Edit" for a given session (date appended). */
   editBasePath: string;
+  /**
+   * Show the per-session Edit action. Teachers: true. Admins: MUST be false —
+   * admins are read-only for attendance (view entries + history, approve
+   * change requests) per product decision 2026-09-15.
+   */
   showEdit?: boolean;
 }) {
   const router = useRouter();
@@ -92,6 +107,10 @@ export function AttendanceReportList({
     if (hasDateFilter) return "No attendance records found for the selected date range.";
     return "No attendance records found.";
   }, [hasDateFilter]);
+
+  const sessionSubtitle = offering
+    ? offeringContextLabel(offering)
+    : (offeringTitle ?? "Attendance session");
 
   return (
     <div className="space-y-4">
@@ -160,7 +179,7 @@ export function AttendanceReportList({
                   <p className="text-sm font-semibold text-slate-800">
                     {weekdayName(s.attendanceDate)} · {monthYearLabel(s.attendanceDate)}
                   </p>
-                  <p className="text-xs text-slate-500">{offeringTitle ?? "Attendance session"}</p>
+                  <p className="text-xs text-slate-500">{sessionSubtitle}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
                     <Stat label="Total" value={s.summary.total} tone="slate" />
                     <Stat label="Present" value={s.summary.present} tone="green" />

@@ -23,7 +23,17 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
     const session = await prisma.attendanceSession.findUnique({
       where: { id: params.sessionId },
       include: {
-        courseOffering: { select: { id: true, sectionId: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
+        courseOffering: {
+          select: {
+            id: true, sectionId: true,
+            course: { select: { title: true, code: true } },
+            section: { select: { name: true } },
+            semester: { select: { name: true } },
+            trade: { select: { name: true, code: true } },
+            shift: { select: { name: true } },
+            academicYear: { select: { name: true } },
+          },
+        },
         records: {
           orderBy: { student: { studentId: "asc" } },
           include: {

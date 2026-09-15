@@ -65,7 +65,15 @@ export type AttendanceHistoryPayload = {
   session: {
     id: string;
     attendanceDate: string;
-    courseOffering: { id: string; course: { title: string; code: string }; section: { name: string } };
+    courseOffering: {
+      id: string;
+      course: { title: string; code: string };
+      section: { name: string };
+      semester?: { name: string };
+      trade?: { name: string; code: string };
+      shift?: { name: string };
+      academicYear?: { name: string };
+    };
   };
   students: AttendanceHistoryStudent[];
   history: AttendanceHistoryEntry[];

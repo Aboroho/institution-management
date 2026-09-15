@@ -13,6 +13,7 @@
 
 import useSWR from "swr";
 import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Badge } from "@/components/ui";
+import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import type { AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
 
@@ -48,13 +49,14 @@ export function AttendanceHistoryDrawer({
         <EmptyState title="No history" />
       ) : (
         <div className="space-y-5">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+          <div className="rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 via-violet-50 to-emerald-50 p-3 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-slate-700">{str(data.session.courseOffering.course.title)}</span>
-              <span className="text-slate-500">·</span>
-              <span className="text-slate-600">Section {str(data.session.courseOffering.section.name)}</span>
-              <span className="text-slate-500">·</span>
+              <span className="font-semibold text-slate-800">{str(data.session.courseOffering.course.title)}</span>
+              <span className="text-slate-400">·</span>
               <span className="text-slate-600">{data.session.attendanceDate}</span>
+            </div>
+            <div className="mt-2">
+              <CourseOfferingBadges offering={data.session.courseOffering as unknown as Record<string, unknown>} />
             </div>
           </div>
 

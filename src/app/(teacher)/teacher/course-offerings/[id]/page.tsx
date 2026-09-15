@@ -8,6 +8,7 @@ import {
   Label, FieldError, Spinner,
 } from "@/components/ui";
 import { Plus, History, ClipboardCheck, BarChart3 } from "lucide-react";
+import { CourseOfferingBanner } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -26,6 +27,7 @@ export default function TeacherOfferingDetail({ params }: { params: { id: string
         title={str((data.course as Row)?.title)}
         subtitle={`${str((data.course as Row)?.code)} · Section ${str((data.section as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)}`}
       />
+      <CourseOfferingBanner offering={data} eyebrow="My course" />
       <Tabs
         tabs={[
           { id: "overview", label: "Overview" }, { id: "students", label: "Students" },

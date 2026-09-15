@@ -35,8 +35,8 @@ export default function CourseDetail({ params }: { params: { id: string } }) {
         </Table>
       )}
       {tab === "offerings" && (
-        <Table headers={["Year", "Trade", "Semester", "Section"]}>
-          {offerings.map((o) => <tr key={str(o.id)}><td className="px-4 py-3"><Link href={`/admin/course-offerings/${o.id}`} className="text-brand-600 hover:underline">{str((o.academicYear as Row)?.name)}</Link></td><td className="px-4 py-3">{str((o.trade as Row)?.name)}</td><td className="px-4 py-3">{str((o.semester as Row)?.name)}</td><td className="px-4 py-3">{str((o.section as Row)?.name)}</td></tr>)}
+        <Table headers={["Year", "Trade", "Semester", "Shift", "Section"]}>
+          {offerings.map((o) => <tr key={str(o.id)}><td className="px-4 py-3"><Link href={`/admin/course-offerings/${o.id}`} className="text-brand-600 hover:underline">{str((o.academicYear as Row)?.name)}</Link></td><td className="px-4 py-3"><Badge tone="blue">{str((o.trade as Row)?.name)}</Badge></td><td className="px-4 py-3"><Badge tone="violet">{str((o.semester as Row)?.name)}</Badge></td><td className="px-4 py-3"><Badge tone="amber">{str((o.shift as Row)?.name)}</Badge></td><td className="px-4 py-3"><Badge tone="green">{str((o.section as Row)?.name)}</Badge></td></tr>)}
         </Table>
       )}
     </div>

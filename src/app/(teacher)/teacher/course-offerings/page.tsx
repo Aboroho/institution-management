@@ -3,6 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
 import { PageHeader, Card, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, Badge } from "@/components/ui";
+import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { Users, CalendarDays } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -21,8 +22,10 @@ export default function TeacherOfferings() {
             <Link key={str(o.id)} href={`/teacher/course-offerings/${o.id}`}>
               <Card className="p-5 transition hover:shadow-md">
                 <p className="font-bold">{str((o.course as Row)?.title)}</p>
-                <p className="text-sm text-slate-500">{str((o.course as Row)?.code)} · Section {str((o.section as Row)?.name)}</p>
-                <p className="mt-1 text-xs text-slate-400">{str((o.academicYear as Row)?.name)} · {str((o.trade as Row)?.name)} · {str((o.semester as Row)?.name)} · {str((o.shift as Row)?.name)}</p>
+                <p className="text-sm text-slate-500">{str((o.course as Row)?.code)}</p>
+                <div className="mt-2">
+                  <CourseOfferingBadges offering={o} />
+                </div>
                 <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
                   <span className="flex items-center gap-1"><Users size={14} /> {str((o._count as Row)?.sessions ?? 0)} sessions</span>
                   <span className="flex items-center gap-1"><CalendarDays size={14} /> {str((o._count as Row)?.assessments ?? 0)} assessments</span>
