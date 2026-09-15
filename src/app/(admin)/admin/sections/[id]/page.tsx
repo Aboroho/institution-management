@@ -30,8 +30,8 @@ export default function SectionDetail({ params }: { params: { id: string } }) {
         </div>
       )}
       {tab === "students" && (
-        <Table headers={["Student ID", "Name", "Status"]}>
-          {(enrollments ?? []).map((e) => <tr key={str(e.id)}><td className="px-4 py-3"><Link href={`/admin/students/${(e.student as Row)?.id}`} className="text-brand-600 hover:underline">{str((e.student as Row)?.studentId)}</Link></td><td className="px-4 py-3">{str(((e.student as Row)?.user as Row)?.name) ?? str(((e.student as Row)?.user as Row)?.name)}</td><td className="px-4 py-3"><Badge tone="green">{str(e.status)}</Badge></td></tr>)}
+        <Table headers={["Roll", "Student ID", "Name", "Status"]}>
+          {(enrollments ?? []).map((e) => <tr key={str(e.id)}><td className="px-4 py-3 font-medium">{str(e.rollNumber)}</td><td className="px-4 py-3"><Link href={`/admin/students/${(e.student as Row)?.id}`} className="text-brand-600 hover:underline">{str((e.student as Row)?.studentId)}</Link></td><td className="px-4 py-3">{str(((e.student as Row)?.user as Row)?.name) ?? str(((e.student as Row)?.user as Row)?.name)}</td><td className="px-4 py-3"><Badge tone="green">{str(e.status)}</Badge></td></tr>)}
         </Table>
       )}
       {tab === "offerings" && (

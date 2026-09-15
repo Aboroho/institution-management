@@ -438,6 +438,7 @@ StudentEnrollment records academic placement.
 
 Enrollment contains appropriate:
 - student
+- roll number (required, unique inside the section)
 - academic year
 - trade
 - semester
@@ -447,6 +448,12 @@ Enrollment contains appropriate:
 - start/end dates if needed
 
 A student cannot change section or shift during a semester.
+
+The roll number is required on every enrollment and unique within its section
+(sectionId + rollNumber). It is entered when enrolling a student; the API rejects duplicates
+with a field error. System-created enrollments (promotion/repetition) take the next free
+number in the destination section, and only a mistyped roll number may be corrected later
+(admin-only, audit-logged).
 
 Do not overwrite the current enrollment to promote a student.
 
@@ -844,6 +851,7 @@ Possible events:
 - NEW_NOTICE
 - MARK_PUBLISHED
 - ATTENDANCE_UPDATE
+- PENDING_APPROVAL
 - PROMOTION_RESULT
 - SYSTEM_NOTIFICATION
 
@@ -1300,8 +1308,10 @@ Operations:
  /admin/enrollments
  /admin/promotions
  /admin/attendance
+ /admin/attendance/approvals
  /admin/assessments
  /admin/marks
+ /admin/marks/approvals
  /admin/schedules
  /admin/notices
 
@@ -1546,12 +1556,17 @@ Show current enrollment separately from historical enrollment.
 Show:
 - student
 - student ID
+- roll number
 - academic year
 - trade
 - semester
 - shift
 - section
 - status
+
+Roll number is required when enrolling a student and must be unique inside the selected
+section. The form prefills the next available number for the section, the API rejects a
+duplicate with an inline field error, and a mistyped number can be corrected (audit-logged).
 
 Preserve historical enrollment.
 

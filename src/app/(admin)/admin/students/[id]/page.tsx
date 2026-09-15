@@ -2,19 +2,24 @@
 import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { get, patch, ApiError } from "@/lib/api/client";
+import { useRouter } from "next/navigation";
+import { del, get, patch, ApiError } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, StatusBadge, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
-import { Pencil } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
 export default function StudentDetail({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [tab, setTab] = useState("overview");
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const { data, error, isLoading, mutate } = useSWR(`student-${params.id}`, () => get<Row>(`/students/${params.id}`).then((r) => r.data));
   const { data: attendance } = useSWR(tab === "attendance" ? `st-att-${params.id}` : null, () => get<Row[]>(`/students/${params.id}/attendance`).then((r) => r.data));
   const { data: grades } = useSWR(tab === "marks" ? `st-marks-${params.id}` : null, () => get<Row[]>(`/students/${params.id}/marks`).then((r) => r.data));
@@ -33,6 +38,17 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
     finally { setSaving(false); }
   }
 
+  async function remove() {
+    setDeleting(true); setDeleteError("");
+    try {
+      await del(`/students/${params.id}`);
+      router.push("/admin/students");
+      router.refresh();
+    } catch (e) {
+      setDeleteError(e instanceof ApiError ? e.message : "Delete failed");
+    } finally { setDeleting(false); }
+  }
+
   if (isLoading) return <><PageHeader title="Student" /><LoadingSkeleton /></>;
   if (error || !data) return <><PageHeader title="Student" /><ErrorState message="Failed to load student" onRetry={() => mutate()} /></>;
 
@@ -43,19 +59,19 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Students", href: "/admin/students" }, { label: str(data.studentId) }]} />
-      <PageHeader title={`${str((data.user as Row)?.name)}`} subtitle={`Student ID: ${str(data.studentId)} · ${str((data.user as Row)?.email)}`} actions={<><Link href={`/admin/reports/students/${params.id}`}><Button variant="outline">Full report</Button></Link><Button variant="outline" onClick={openEdit}><Pencil size={14} /> Edit</Button></>} />
+      <PageHeader title={`${str((data.user as Row)?.name)}`} subtitle={`Student ID: ${str(data.studentId)} · ${str((data.user as Row)?.email)}`} actions={<><Link href={`/admin/reports/students/${params.id}`}><Button variant="outline">Full report</Button></Link><Button variant="outline" onClick={openEdit}><Pencil size={14} /> Edit</Button><Button variant="danger" onClick={() => { setDeleteError(""); setDeleteOpen(true); }}><Trash2 size={14} /> Delete</Button></>} />
       <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "enrollments", label: `Enrollments (${enrollments.length})` }, { id: "attendance", label: "Attendance" }, { id: "marks", label: "Marks" }, { id: "promotions", label: "Promotion history" }]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Card className="p-5"><p className="text-sm text-slate-500">Status</p><p className="mt-1">{data.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</p></Card>
-          <Card className="p-5"><p className="text-sm text-slate-500">Current enrollment</p><p className="mt-1 text-sm font-medium">{current ? `${str((current.academicYear as Row)?.name)} · ${str((current.trade as Row)?.name)} · ${str((current.semester as Row)?.name)} · ${str((current.section as Row)?.name)}` : "None"}</p></Card>
+          <Card className="p-5"><p className="text-sm text-slate-500">Current enrollment</p><p className="mt-1 text-sm font-medium">{current ? `${str((current.academicYear as Row)?.name)} · ${str((current.trade as Row)?.name)} · ${str((current.semester as Row)?.name)} · ${str((current.section as Row)?.name)} · Roll ${str(current.rollNumber)}` : "None"}</p></Card>
           <Card className="p-5"><p className="text-sm text-slate-500">Guardian</p><p className="mt-1 text-sm">{str(data.guardianName ?? "—")} · {str(data.guardianPhone ?? "—")}</p><p className="mt-1 text-sm text-slate-500">Phone: {str(data.phone ?? "—")}</p></Card>
         </div>
       )}
       {tab === "enrollments" && (
-        <Table headers={["Year", "Trade", "Semester", "Shift", "Section", "Status", "Enrolled"]}>
-          {enrollments.map((e) => <tr key={str(e.id)}><td className="px-4 py-3 text-sm">{str((e.academicYear as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.trade as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.semester as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.shift as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.section as Row)?.name)}</td><td className="px-4 py-3"><StatusBadge status={str(e.status)} /></td><td className="px-4 py-3 text-sm">{str(e.enrolledAt).slice(0, 10)}</td></tr>)}
+        <Table headers={["Roll", "Year", "Trade", "Semester", "Shift", "Section", "Status", "Enrolled"]}>
+          {enrollments.map((e) => <tr key={str(e.id)}><td className="px-4 py-3 font-medium">{str(e.rollNumber)}</td><td className="px-4 py-3 text-sm">{str((e.academicYear as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.trade as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.semester as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.shift as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str((e.section as Row)?.name)}</td><td className="px-4 py-3"><StatusBadge status={str(e.status)} /></td><td className="px-4 py-3 text-sm">{str(e.enrolledAt).slice(0, 10)}</td></tr>)}
         </Table>
       )}
       {tab === "attendance" && (
@@ -104,6 +120,26 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog open={deleteOpen} title="Delete student permanently?" onClose={() => { if (!deleting) setDeleteOpen(false); }}>
+        <div className="space-y-4">
+          <div className="flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <AlertTriangle className="mt-0.5 shrink-0" size={20} />
+            <div>
+              <p className="font-semibold">This action cannot be undone.</p>
+              <p className="mt-1">The student profile and login account will be permanently removed.</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600">
+            Students with enrollments, attendance, submissions, marks, promotion history, or uploaded files cannot be deleted. They must be deactivated so academic history remains intact.
+          </p>
+          <FieldError error={deleteError} />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
+            <Button variant="danger" onClick={remove} disabled={deleting}>{deleting && <Spinner />} Delete permanently</Button>
           </div>
         </div>
       </Dialog>

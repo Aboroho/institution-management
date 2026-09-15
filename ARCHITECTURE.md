@@ -33,7 +33,7 @@ Rules:
 | marks | Marks, histories, approvals, `GradingService` |
 | promotions | Eligibility preview + transactional execution, new enrollments |
 | notices | Per-offering announcements (preserved across substitution) |
-| notifications | In-app + async email/SMS. **No push notifications.** |
+| notifications | In-app + async email/SMS. Approval requests notify active admins. **No push notifications.** |
 | reports | Server-side aggregations + dashboards |
 | audit | Immutable audit log |
 
@@ -53,7 +53,18 @@ Swap with BullMQ/Redis for multi-instance production (same `enqueue` interface).
 - One active teacher per offering: `TeacherCourseAssignment.activeSlot @unique` (set to offering id while active, null when closed).
 - One attendance session per offering per date; one mark per assessment+student; one submission per assessment+student.
 - Course codes, student IDs (permanent), employee IDs unique.
+- Enrollment roll numbers are required, admin-supplied, and unique within each section
+  (`sectionId + rollNumber`); duplicates are rejected with a field error, and promotion/repetition
+  assign the next free number in the destination section.
 - Semester unique per trade; section unique per full academic context.
+- Admin student deletion is guarded: accounts with academic history are deactivated instead of
+  deleting records, while unused student accounts can be permanently removed after UI confirmation.
+
+## Key invariants (service-enforced, no DB change)
+
+- **Single active curriculum per trade + semester**: activating/creating an active curriculum deactivates all others of the same trade + semester inside a transaction (`courses.service.ts`). At most one curriculum is active; zero is possible (blocks offerings until one is activated).
+- **Offerings restricted to the active curriculum**: `createOffering` (and any future course change on update) rejects a course that is not in the active curriculum of the offering's trade + semester (`assertCourseInActiveCurriculum`), or when no active curriculum exists (`offerings.service.ts`).
+- Frontend mirrors these rules for UX only: the offering dialog loads courses from `GET /api/v1/curricula/active?tradeId=&semesterId=` and disables saving until a curriculum course is selected.
 
 ## Decisions
 

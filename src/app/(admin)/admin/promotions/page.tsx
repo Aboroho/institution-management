@@ -73,9 +73,10 @@ export default function PromotionsPage() {
       {preview && !loading && (
         preview.length === 0 ? <EmptyState title="No active students in this context" /> : (
           <>
-            <Table headers={["Student", "Section", "Graded", "Passed", "Suggested", "Decision"]}>
+            <Table headers={["Roll", "Student", "Section", "Graded", "Passed", "Suggested", "Decision"]}>
               {preview.map((p) => (
                 <tr key={str(p.enrollmentId)} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium">{str(p.rollNumber)}</td>
                   <td className="px-4 py-3 font-medium">{str(((p.student as Row)?.user as Row)?.name)} <span className="text-xs text-slate-400">{str((p.student as Row)?.studentId)}</span></td>
                   <td className="px-4 py-3">{str((p.section as Row)?.name)}</td>
                   <td className="px-4 py-3">{p.gradedAll ? <Badge tone="green">Yes</Badge> : <Badge tone="amber">No</Badge>}</td>

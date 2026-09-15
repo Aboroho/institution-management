@@ -52,10 +52,33 @@ export async function createOffering(data: {
   }
   const course = await prisma.course.findUnique({ where: { id: data.courseId } });
   if (!course) throw notFound("Course not found");
+  await assertCourseInActiveCurriculum(data.tradeId, data.semesterId, data.courseId);
   try {
     return await prisma.courseOffering.create({ data });
   } catch {
     throw conflict("Course offering already exists for this context");
+  }
+}
+
+/**
+ * Business rule: a course can only be offered for a trade + semester if it belongs to
+ * the (single) active curriculum of that trade + semester.
+ */
+export async function assertCourseInActiveCurriculum(tradeId: string, semesterId: string, courseId: string) {
+  const semester = await prisma.semester.findUnique({ where: { id: semesterId } });
+  if (!semester) throw notFound("Semester not found");
+  if (semester.tradeId !== tradeId) throw businessRule("Semester does not belong to the selected trade");
+  const curriculum = await prisma.curriculum.findFirst({
+    where: { tradeId, semesterId, isActive: true },
+    include: { courses: { where: { courseId }, select: { id: true } } },
+  });
+  if (!curriculum) {
+    throw businessRule("No active curriculum exists for this trade and semester. Activate or create a curriculum before offering courses.");
+  }
+  if (curriculum.courses.length === 0) {
+    throw businessRule(
+      `Course is not part of the active curriculum "${curriculum.name}" (v${curriculum.version}) for this trade and semester. Only curriculum courses can be offered.`
+    );
   }
 }
 
@@ -80,14 +103,18 @@ export async function getOffering(id: string) {
       shiftId: o.shiftId, sectionId: o.sectionId, status: "ACTIVE",
     },
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
-    orderBy: { student: { studentId: "asc" } },
+    orderBy: { rollNumber: "asc" },
   });
-  return { ...o, students: enrollments.map((e) => e.student) };
+  return { ...o, students: enrollments.map((e) => ({ ...e.student, rollNumber: e.rollNumber })) };
 }
 
-export async function updateOffering(id: string, data: Partial<{ isActive: boolean }>) {
+export async function updateOffering(id: string, data: Partial<{ isActive: boolean; courseId: string }>) {
   const existing = await prisma.courseOffering.findUnique({ where: { id } });
   if (!existing) throw notFound("Course offering not found");
+  // Defense in depth: if a course change is ever allowed, it must stay within the active curriculum.
+  if (data.courseId && data.courseId !== existing.courseId) {
+    await assertCourseInActiveCurriculum(existing.tradeId, existing.semesterId, data.courseId);
+  }
   return prisma.courseOffering.update({ where: { id }, data });
 }
 
@@ -100,6 +127,6 @@ export async function offeringStudents(id: string) {
       shiftId: o.shiftId, sectionId: o.sectionId, status: "ACTIVE",
     },
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
-    orderBy: { student: { studentId: "asc" } },
+    orderBy: { rollNumber: "asc" },
   });
 }

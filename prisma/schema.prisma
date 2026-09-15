@@ -65,6 +65,7 @@ enum NotificationType {
   NEW_NOTICE
   MARK_PUBLISHED
   ATTENDANCE_UPDATE
+  PENDING_APPROVAL
   PROMOTION_RESULT
   SYSTEM_NOTIFICATION
 }
@@ -345,6 +346,8 @@ model StudentEnrollment {
   semesterId     String
   shiftId        String
   sectionId      String
+  // Required admin-supplied roll number. The composite constraint below scopes uniqueness to a section.
+  rollNumber     Int
   status         EnrollmentStatus @default(ACTIVE)
   enrolledAt     DateTime         @default(now())
   endedAt        DateTime?
@@ -362,6 +365,7 @@ model StudentEnrollment {
   promotionsTo   StudentPromotion[] @relation("PromotionTo")
 
   @@unique([studentId, academicYearId, semesterId, sectionId])
+  @@unique([sectionId, rollNumber])
   @@index([studentId])
   @@index([academicYearId])
   @@index([tradeId])

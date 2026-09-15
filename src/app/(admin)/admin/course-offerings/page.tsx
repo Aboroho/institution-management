@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get, post, qs, ApiError } from "@/lib/api/client";
-import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses } from "@/components/academic-options";
+import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses, useActiveCurriculum } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
@@ -31,6 +31,9 @@ export default function OfferingsPage() {
 
   const formSemesters = useSemesters(form.tradeId || undefined);
   const formSections = useSections({ academicYearId: form.academicYearId || undefined, tradeId: form.tradeId || undefined, semesterId: form.semesterId || undefined, shiftId: form.shiftId || undefined });
+  // Business rule: only courses in the ACTIVE curriculum of the selected trade + semester can be offered.
+  const { curriculum: activeCurr, courseOptions: currCourses, loading: currLoading } = useActiveCurriculum(form.tradeId || undefined, form.semesterId || undefined);
+  const canPickCourse = Boolean(form.tradeId && form.semesterId && activeCurr && currCourses.length > 0);
 
   function setFilter(k: string, v: string) {
     const nf = { ...f };
@@ -85,16 +88,32 @@ export default function OfferingsPage() {
       <Dialog open={dialog} title="New course offering" onClose={() => setDialog(false)} wide>
         <div className="grid grid-cols-2 gap-3">
           <div><Label required>Academic year</Label><SearchableSelect options={years} value={form.academicYearId ?? ""} onChange={(v) => setForm({ ...form, academicYearId: v })} clearLabel="Select..." /></div>
-          <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "", sectionId: "" })} clearLabel="Select..." /></div>
-          <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value, sectionId: "" })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+          <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "", sectionId: "", courseId: "" })} clearLabel="Select..." /></div>
+          <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value, sectionId: "", courseId: "" })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label required>Shift</Label><Select value={form.shiftId ?? ""} onChange={(e) => setForm({ ...form, shiftId: e.target.value, sectionId: "" })}><option value="">Select...</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           <div><Label required>Section</Label><Select value={form.sectionId ?? ""} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}><option value="">Select...</option>{formSections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
-          <div><Label required>Course</Label><SearchableSelect options={courses} value={form.courseId ?? ""} onChange={(v) => setForm({ ...form, courseId: v })} clearLabel="Select..." /></div>
+          <div>
+            <Label required>Course</Label>
+            {!form.tradeId || !form.semesterId ? (
+              <SearchableSelect options={[]} value="" onChange={() => {}} disabled ariaLabel="Course" placeholder="Select trade and semester first" />
+            ) : currLoading ? (
+              <SearchableSelect options={[]} value="" onChange={() => {}} disabled ariaLabel="Course" placeholder="Loading curriculum..." />
+            ) : !activeCurr ? (
+              <SearchableSelect options={[]} value="" onChange={() => {}} disabled ariaLabel="Course" placeholder="No active curriculum" />
+            ) : (
+              <SearchableSelect options={currCourses} value={form.courseId ?? ""} onChange={(v) => setForm({ ...form, courseId: v })} ariaLabel="Course" clearLabel="Select..." placeholder={currCourses.length ? "Select..." : "Curriculum has no courses"} />
+            )}
+            {form.tradeId && form.semesterId && !currLoading && (activeCurr ? (
+              <p className="mt-1 text-xs text-slate-500">Courses from the active curriculum <span className="font-medium">{activeCurr.name} (v{activeCurr.version})</span> only. <Link href="/admin/curricula" className="text-brand-600 hover:underline">Manage curricula</Link></p>
+            ) : (
+              <p className="mt-1 text-xs text-amber-600">No active curriculum for this trade + semester. Activate or create one in <Link href="/admin/curricula" className="text-brand-600 hover:underline">Curricula</Link> first.</p>
+            ))}
+          </div>
         </div>
         <FieldError error={formError} />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+          <Button onClick={save} disabled={saving || !canPickCourse || !form.courseId}>{saving && <Spinner />} Save</Button>
         </div>
       </Dialog>
     </div>

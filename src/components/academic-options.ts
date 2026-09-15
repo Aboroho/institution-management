@@ -52,6 +52,24 @@ export function useCourses() {
     return { value: str(r.id), label, search: `${str(r.code)} ${str(r.title)}`.toLowerCase() };
   });
 }
+
+/** The single active curriculum for a trade + semester, with its courses as options. */
+export function useActiveCurriculum(tradeId?: string, semesterId?: string) {
+  const ready = Boolean(tradeId && semesterId);
+  const { data, isLoading } = useSWR(
+    ready ? `opt-curr-active-${tradeId}-${semesterId}` : null,
+    () => get<Row | null>(`/curricula/active?tradeId=${tradeId}&semesterId=${semesterId}`).then((r) => r.data)
+  );
+  const curriculum = data
+    ? { id: str(data.id), name: str(data.name), version: Number(data.version ?? 1) }
+    : null;
+  const courseOptions = ((data?.courses as Row[] | undefined) ?? []).map((cc) => {
+    const c = cc.course as Row;
+    const label = `${str(c.code)} — ${str(c.title)}`;
+    return { value: str(c.id), label, search: `${str(c.code)} ${str(c.title)}`.toLowerCase() };
+  });
+  return { curriculum, courseOptions, loading: ready && isLoading };
+}
 export function useTeachers() {
   const { data } = useSWR("opt-teachers", () => get<Row[]>("/teachers?limit=200").then((r) => r.data));
   return (data ?? []).map((r) => {

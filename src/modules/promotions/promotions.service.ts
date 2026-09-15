@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { notFound, businessRule, conflict } from "@/lib/errors/errors";
 import { computeFinalGrade, type GradableAssessment } from "@/modules/marks/grading.service";
+import { nextSectionRollNumber } from "@/modules/students/roll";
 import type { PromotionDecision } from "@prisma/client";
 
 export async function evaluateEligibility(opts: {
@@ -46,7 +47,7 @@ export async function evaluateEligibility(opts: {
       });
     const suggested: PromotionDecision = !gradedAll ? "REPEAT" : passedAll ? "PROMOTED" : "REPEAT";
     return {
-      enrollmentId: en.id, studentId: en.studentId,
+      enrollmentId: en.id, studentId: en.studentId, rollNumber: en.rollNumber,
       student: en.student, section: en.section, semester: en.semester,
       perCourse, gradedAll, passedAll, suggested,
     };
@@ -82,8 +83,10 @@ export async function executePromotion(opts: {
         if (next.tradeId !== from.tradeId) throw businessRule("Destination semester must belong to the same trade");
         toSemesterId = next.id;
         // Find or require destination section.
-        let destSectionId = opts.toSectionId;
-        if (!destSectionId) {
+        let destSectionId: string;
+        if (opts.toSectionId) {
+          destSectionId = opts.toSectionId;
+        } else {
           const sameName = await tx.section.findFirst({
             where: {
               academicYearId: opts.toAcademicYearId ?? from.academicYearId,
@@ -100,6 +103,8 @@ export async function executePromotion(opts: {
             academicYearId: opts.toAcademicYearId ?? from.academicYearId,
             tradeId: from.tradeId, semesterId: next.id,
             shiftId: opts.toShiftId ?? from.shiftId, sectionId: destSectionId,
+            // Roll numbers are unique per section; system-created enrollments take the next free one.
+            rollNumber: await nextSectionRollNumber(tx, destSectionId),
             status: "ACTIVE",
           },
         });
@@ -110,7 +115,8 @@ export async function executePromotion(opts: {
         const to = await tx.studentEnrollment.create({
           data: {
             studentId: from.studentId, academicYearId: from.academicYearId, tradeId: from.tradeId,
-            semesterId: from.semesterId, shiftId: from.shiftId, sectionId: from.sectionId, status: "ACTIVE",
+            semesterId: from.semesterId, shiftId: from.shiftId, sectionId: from.sectionId,
+            rollNumber: await nextSectionRollNumber(tx, from.sectionId), status: "ACTIVE",
           },
         }).catch(() => null);
         if (to) {

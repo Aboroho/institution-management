@@ -112,7 +112,7 @@ async function main() {
     const has = await prisma.studentEnrollment.findFirst({ where: { studentId: student.id, academicYearId: year.id, semesterId: sem1.id, status: "ACTIVE" } });
     if (!has) {
       await prisma.studentEnrollment.create({
-        data: { studentId: student.id, academicYearId: year.id, tradeId: trade.id, semesterId: sem1.id, shiftId: shift.id, sectionId: section.id, status: "ACTIVE" },
+        data: { studentId: student.id, academicYearId: year.id, tradeId: trade.id, semesterId: sem1.id, shiftId: shift.id, sectionId: section.id, rollNumber: i, status: "ACTIVE" },
       });
     }
   }

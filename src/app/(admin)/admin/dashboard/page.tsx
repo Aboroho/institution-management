@@ -49,11 +49,11 @@ export default function AdminDashboard() {
           <Card className="p-5">
             <h2 className="mb-3 font-semibold text-slate-800">Pending approvals</h2>
             <div className="space-y-2 text-sm">
-              <Link href="/admin/attendance?tab=approvals" className="flex items-center justify-between rounded-lg bg-slate-50 p-3 hover:bg-slate-100">
+              <Link href="/admin/attendance/approvals" className="flex items-center justify-between rounded-lg bg-slate-50 p-3 hover:bg-slate-100">
                 <span className="flex items-center gap-2"><Hourglass size={16} /> Attendance</span>
                 <span className="font-bold">{data.pendingAttendance}</span>
               </Link>
-              <Link href="/admin/marks?tab=approvals" className="flex items-center justify-between rounded-lg bg-slate-50 p-3 hover:bg-slate-100">
+              <Link href="/admin/marks/approvals" className="flex items-center justify-between rounded-lg bg-slate-50 p-3 hover:bg-slate-100">
                 <span className="flex items-center gap-2"><Award size={16} /> Marks</span>
                 <span className="font-bold">{data.pendingMarks}</span>
               </Link>
