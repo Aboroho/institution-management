@@ -31,7 +31,7 @@ export async function notifyAdmins(input: Omit<NotifyInput, "recipientIds">) {
     return;
   }
 
-  await notify({ ...input, recipientIds: admins.map((admin) => admin.id) });
+  await notify({ ...input, recipientIds: admins.map((admin: any) => admin.id) });
 }
 
 export async function notify(input: NotifyInput) {

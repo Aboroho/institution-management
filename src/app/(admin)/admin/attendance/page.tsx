@@ -33,7 +33,9 @@ function AttendanceContent() {
   const router = useRouter();
   // Admin workflow is report/inspection-only — there is intentionally no
   // "Take Attendance" tab here. Approvals handle teacher change requests.
-  const [tab, setTab] = useState(qp.get("tab") === "approvals" ? "approvals" : "report");
+  const [tab, setTab] = useState(qp.get("tab") === "approvals" ? "approvals" : "sessions");
+  const offerings = useOfferings();
+  const [offeringId, setOfferingId] = useState("");
 
   // Full offering row for the context banner + enriched session subtitles.
   const { data: offering, error: offErr } = useSWR(

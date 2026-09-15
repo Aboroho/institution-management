@@ -89,7 +89,7 @@ export async function saveSessionAttendance(opts: {
   if (!offering) throw notFound("Course offering not found");
   const date = startOfDay(opts.attendanceDate);
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     let session = await tx.attendanceSession.findUnique({
       where: { courseOfferingId_attendanceDate: { courseOfferingId: opts.courseOfferingId, attendanceDate: date } },
     });
@@ -247,7 +247,7 @@ export async function listAttendanceReport(opts: {
     return { items: [] as AttendanceReportItem[], total, page, pageSize };
   }
 
-  const sessionIds = sessions.map((s) => s.id);
+  const sessionIds = sessions.map((s: any) => s.id);
 
   // Aggregate summary counts by status per session in a single query.
   const grouped = await prisma.attendanceRecord.groupBy({
@@ -271,7 +271,7 @@ export async function listAttendanceReport(opts: {
     else if (g.status === "EXCUSED") s.excused = c;
   }
 
-  const items: AttendanceReportItem[] = sessions.map((s) => ({
+  const items: AttendanceReportItem[] = sessions.map((s: any) => ({
     id: s.id,
     courseOfferingId: s.courseOfferingId,
     attendanceDate: dateOnlyISO(s.attendanceDate),
@@ -322,7 +322,7 @@ export async function getSessionHistory(sessionId: string) {
     orderBy: { student: { studentId: "asc" } },
   });
 
-  const recordIds = records.map((r) => r.id);
+  const recordIds = records.map((r: any) => r.id);
 
   // Pull logs and approved requests in parallel.
   const [logs, approvedRequests] = await Promise.all([
@@ -351,7 +351,7 @@ export async function getSessionHistory(sessionId: string) {
     if (!requestByRecordOldNew.has(key)) requestByRecordOldNew.set(key, r);
   }
 
-  const annotated = logs.map((l) => {
+  const annotated = logs.map((l: any) => {
     const key = `${l.recordId}:${l.oldStatus}->${l.newStatus}`;
     const req = requestByRecordOldNew.get(key);
     // A change was "approval-based" if a corresponding change-request exists
@@ -403,7 +403,7 @@ export async function getSessionHistory(sessionId: string) {
     }
   }
 
-  const studentInfo = records.map((r) => ({
+  const studentInfo = records.map((r: any) => ({
     recordId: r.id,
     studentId: r.student.studentId,
     rollNumber: rollByStudent.get(r.student.id) ?? null,
@@ -494,7 +494,7 @@ export async function listChangeRequests(opts: { status?: string; courseOffering
 }
 
 export async function reviewChangeRequest(id: string, opts: { approve: boolean; reviewedById: string; reviewNote?: string }) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const req = await tx.attendanceChangeRequest.findUnique({ where: { id } });
     if (!req) throw notFound("Change request not found");
     if (req.status !== "PENDING") throw businessRule("Request already reviewed");
@@ -549,7 +549,7 @@ export async function studentAttendanceSummary(studentId: string, courseOffering
     where: { id: { in: [...byOffering.keys()] } },
     include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true },
   });
-  return offerings.map((o) => {
+  return offerings.map((o: any) => {
     const s = byOffering.get(o.id)!;
     const pct = s.total ? Math.round(((s.present + s.late * 0.5 + s.excused * 0.5) / s.total) * 1000) / 10 : 0;
     return { offering: o, ...s, percentage: pct };

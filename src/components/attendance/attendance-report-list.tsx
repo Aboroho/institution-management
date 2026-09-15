@@ -51,7 +51,7 @@ export function AttendanceReportList({
    */
   offering?: Row;
   /** Base path used to navigate to "Edit" for a given session (date appended). */
-  editBasePath: string;
+  editBasePath?: string;
   /**
    * Show the per-session Edit action. Teachers: true. Admins: MUST be false —
    * admins are read-only for attendance (view entries + history, approve

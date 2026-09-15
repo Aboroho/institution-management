@@ -98,7 +98,7 @@ export async function createStudent(data: {
 
   const passwordHash = await hashPassword(data.password);
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       // Re-check inside transaction to guard against concurrent inserts
       const takenInTx = await tx.studentEnrollment.findUnique({
         where: { sectionId_rollNumber: { sectionId: data.sectionId, rollNumber: data.rollNumber } },
@@ -172,7 +172,7 @@ export async function updateStudent(id: string, data: Partial<{
   const s = await prisma.student.findUnique({ where: { id } });
   if (!s) throw notFound("Student not found");
   const { name, isActive, dateOfBirth, ...rest } = data;
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     if (name !== undefined || isActive !== undefined) {
       await tx.user.update({ where: { id: s.userId }, data: {
         ...(name !== undefined ? { name } : {}),
@@ -225,7 +225,7 @@ export async function deleteStudent(id: string) {
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: any) => {
       await tx.student.delete({ where: { id } });
       // The account has no remaining student-owned records. Notifications cascade
       // from the user; audit actor references are configured with SetNull.

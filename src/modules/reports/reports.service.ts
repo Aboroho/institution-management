@@ -12,7 +12,7 @@ export async function attendanceReport(opts: {
   }
   if (opts.courseOfferingId) offeringWhere.id = opts.courseOfferingId;
   const offerings = await prisma.courseOffering.findMany({ where: offeringWhere, select: { id: true } });
-  const ids = offerings.map((o) => o.id);
+  const ids = offerings.map((o: any) => o.id);
   if (!ids.length) return [];
 
   const sessionWhere: Record<string, unknown> = { courseOfferingId: { in: ids } };
@@ -44,10 +44,10 @@ export async function attendanceReport(opts: {
       else a.excused += 1;
     }
   }
-  return [...agg.values()].map((a) => ({
+  return [...agg.values()].map((a: any) => ({
     ...a,
     percentage: a.total ? Math.round(((a.present + a.late * 0.5 + a.excused * 0.5) / a.total) * 1000) / 10 : 0,
-  })).sort((a, b) => a.studentCode.localeCompare(b.studentCode));
+  })).sort((a: any, b: any) => a.studentCode.localeCompare(b.studentCode));
 }
 
 export async function marksReport(opts: {
@@ -74,7 +74,7 @@ export async function marksReport(opts: {
     },
     orderBy: { createdAt: "desc" },
   });
-  return assessments.flatMap((a) =>
+  return assessments.flatMap((a: any) =>
     a.marks.map((m: any) => {
       const pct = a.totalMarks ? Math.round((m.marksObtained / a.totalMarks) * 1000) / 10 : 0;
       return {
@@ -184,7 +184,7 @@ export async function adminDashboard() {
       if (r.status === "PRESENT" || r.status === "LATE") t.present += 1;
     }
   }
-  const trend = [...trendMap.values()].sort((a, b) => a.date.localeCompare(b.date)).map((t) => ({
+  const trend = [...trendMap.values()].sort((a: any, b: any) => a.date.localeCompare(b.date)).map((t: any) => ({
     date: t.date, percentage: t.total ? Math.round((t.present / t.total) * 1000) / 10 : 0,
   }));
   return {
@@ -209,7 +209,7 @@ export async function teacherDashboard(teacherId: string) {
     },
   });
   const today = new Date().getDay();
-  const todayClasses = assignments.filter((a) =>
+  const todayClasses = assignments.filter((a: any) =>
     a.courseOffering.schedules.some((s: any) => s.items.some((i: any) => i.weekday === today))
   ).length;
   return { assignments, todayClasses };
@@ -222,10 +222,10 @@ export async function studentDashboard(studentId: string) {
   });
   const records = await prisma.attendanceRecord.findMany({ where: { studentId } });
   const total = records.length;
-  const present = records.filter((r) => r.status === "PRESENT").length;
-  const absent = records.filter((r) => r.status === "ABSENT").length;
-  const late = records.filter((r) => r.status === "LATE").length;
-  const excused = records.filter((r) => r.status === "EXCUSED").length;
+  const present = records.filter((r: any) => r.status === "PRESENT").length;
+  const absent = records.filter((r: any) => r.status === "ABSENT").length;
+  const late = records.filter((r: any) => r.status === "LATE").length;
+  const excused = records.filter((r: any) => r.status === "EXCUSED").length;
   return {
     enrollments,
     attendance: {

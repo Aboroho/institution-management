@@ -27,10 +27,10 @@ export async function POST(req: NextRequest) {
     const results = await executePromotion({ ...body, decidedById: auth.userId });
     await audit({ actorUserId: auth.userId, action: "promotion.execute", entityType: "StudentPromotion", entityId: `${results.length}-items`, newValues: { count: results.length }, ...requestMeta() });
     // Notify affected students (in-app).
-    const students = await prisma.student.findMany({ where: { id: { in: results.map((r) => r.studentId) } }, select: { id: true, userId: true } });
-    const byId = new Map(results.map((r) => [r.studentId, r]));
+    const students = await prisma.student.findMany({ where: { id: { in: results.map((r: { studentId: string }) => r.studentId) } }, select: { id: true, userId: true } });
+    const byId = new Map(results.map((r: { studentId: string }) => [r.studentId, r] as const));
     for (const s of students) {
-      const r = byId.get(s.id);
+      const r = byId.get(s.id) as { decision: string; id: string } | undefined;
       await notify({ recipientIds: [s.userId], type: "PROMOTION_RESULT", title: "Promotion result published",
         message: `Your academic result: ${r?.decision}.`, resourceType: "StudentPromotion", resourceId: r?.id });
     }

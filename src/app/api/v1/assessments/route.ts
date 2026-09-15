@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
       const assigns = await prisma.teacherCourseAssignment.findMany({
         where: { teacher: { userId: auth.userId }, isActive: true }, select: { courseOfferingId: true },
       });
-      const ids = new Set(assigns.map((a) => a.courseOfferingId));
-      return paginated(items.filter((a) => ids.has(a.courseOfferingId)), page, limit, total);
+      const ids = new Set(assigns.map((a: { courseOfferingId: string }) => a.courseOfferingId));
+      return paginated(items.filter((a: { courseOfferingId: string }) => ids.has(a.courseOfferingId)), page, limit, total);
     }
     return paginated(items, page, limit, total);
   } catch (e) { return fail(e); }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         where: { academicYearId: offering.academicYearId, tradeId: offering.tradeId, semesterId: offering.semesterId, shiftId: offering.shiftId, sectionId: offering.sectionId, status: "ACTIVE" },
         include: { student: { select: { userId: true } } },
       });
-      await notify({ recipientIds: ens.map((e) => e.student.userId), type: "NEW_ASSIGNMENT", title: `New assessment: ${created.title}`,
+      await notify({ recipientIds: ens.map((e: { student: { userId: string } }) => e.student.userId), type: "NEW_ASSIGNMENT", title: `New assessment: ${created.title}`,
         message: `A new ${created.type.toLowerCase().replace(/_/g, " ")} has been published.`, resourceType: "Assessment", resourceId: created.id });
     }
     return ok(created, undefined, 201);

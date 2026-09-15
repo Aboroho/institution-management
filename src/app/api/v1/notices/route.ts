@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
       const { items, total } = await listNotices({ courseOfferingId: s.get("courseOfferingId") || undefined, teacherId: t.id, search: s.get("search") || undefined, page, limit });
       // Also include notices in own offerings from predecessors (history preserved).
       const assigns = await prisma.teacherCourseAssignment.findMany({ where: { teacherId: t.id, isActive: true }, select: { courseOfferingId: true } });
-      const own = new Set(assigns.map((a) => a.courseOfferingId));
-      const scoped = items.filter((n) => own.has(n.courseOfferingId));
+      const own = new Set(assigns.map((a: { courseOfferingId: string }) => a.courseOfferingId));
+      const scoped = items.filter((n: { courseOfferingId: string }) => own.has(n.courseOfferingId));
       return paginated(scoped, page, limit, scoped.length);
     }
     const { page, limit } = parsePagination(s);
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         where: { academicYearId: offering.academicYearId, tradeId: offering.tradeId, semesterId: offering.semesterId, shiftId: offering.shiftId, sectionId: offering.sectionId, status: "ACTIVE" },
         include: { student: { select: { userId: true } } },
       });
-      await notify({ recipientIds: ens.map((e) => e.student.userId), type: "NEW_NOTICE", title: `New notice: ${created.title}`,
+      await notify({ recipientIds: ens.map((e: { student: { userId: string } }) => e.student.userId), type: "NEW_NOTICE", title: `New notice: ${created.title}`,
         message: created.content.slice(0, 200), resourceType: "Notice", resourceId: created.id });
     }
     return ok(created, undefined, 201);

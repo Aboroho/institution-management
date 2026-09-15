@@ -17,20 +17,20 @@ export async function GET(req: NextRequest) {
     if (auth.role === "TEACHER" && !courseOfferingId) {
       const t = await myTeacher(auth);
       const assigns = await prisma.teacherCourseAssignment.findMany({ where: { teacherId: t.id, isActive: true }, select: { courseOfferingId: true } });
-      const ids = assigns.map((a) => a.courseOfferingId);
+      const ids = assigns.map((a: { courseOfferingId: string }) => a.courseOfferingId);
       const all = await listSchedules({ activeOnly: true });
-      return ok(all.filter((v) => ids.includes(v.courseOfferingId)));
+      return ok(all.filter((v: { courseOfferingId: string }) => ids.includes(v.courseOfferingId)));
     }
     if (auth.role === "STUDENT" && !courseOfferingId) {
       const me = await myStudent(auth);
       const ens = await prisma.studentEnrollment.findMany({ where: { studentId: me.id, status: "ACTIVE" } });
       const offs = await prisma.courseOffering.findMany({
-        where: { OR: ens.map((e) => ({ academicYearId: e.academicYearId, tradeId: e.tradeId, semesterId: e.semesterId, shiftId: e.shiftId, sectionId: e.sectionId })) },
+        where: { OR: ens.map((e: { academicYearId: string; tradeId: string; semesterId: string; shiftId: string; sectionId: string }) => ({ academicYearId: e.academicYearId, tradeId: e.tradeId, semesterId: e.semesterId, shiftId: e.shiftId, sectionId: e.sectionId })) },
         select: { id: true },
       });
-      const ids = offs.map((o) => o.id);
+      const ids = offs.map((o: { id: string }) => o.id);
       const all = await listSchedules({ activeOnly: true });
-      return ok(all.filter((v) => ids.includes(v.courseOfferingId)));
+      return ok(all.filter((v: { courseOfferingId: string }) => ids.includes(v.courseOfferingId)));
     }
     return ok(await listSchedules({
       courseOfferingId,
