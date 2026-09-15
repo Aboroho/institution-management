@@ -1,14 +1,18 @@
 "use client";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState } from "@/components/ui";
+import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState, Card, Button } from "@/components/ui";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { AttendanceTakeForm } from "@/components/attendance/attendance-take-form";
+import Link from "next/link";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
+/**
+ * Admins must never edit attendance directly. The edit route is kept so old
+ * links explain the rule and guide back to the read-only report (the API
+ * also rejects admin writes with 403 — this page never calls it).
+ */
 export default function AdminEditAttendancePage({ params }: { params: { id: string } }) {
   return (
     <Suspense fallback={<LoadingSkeleton rows={4} />}>
@@ -18,9 +22,6 @@ export default function AdminEditAttendancePage({ params }: { params: { id: stri
 }
 
 function Content({ id }: { id: string }) {
-  const searchParams = useSearchParams();
-  const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
-
   const { data, error, isLoading } = useSWR(`off-${id}`, () =>
     get<Row>(`/course-offerings/${id}`).then((r) => r.data),
   );
@@ -37,23 +38,31 @@ function Content({ id }: { id: string }) {
         items={[
           { label: "Course Offerings", href: "/admin/course-offerings" },
           { label: str(course?.title), href: `/admin/course-offerings/${id}` },
-          { label: "Attendance", href: `/admin/course-offerings/${id}/attendance?tab=report` },
-          { label: `Edit ${date}` },
+          { label: "Attendance Report", href: `/admin/course-offerings/${id}/attendance?tab=report` },
+          { label: "Edit (unavailable)" },
         ]}
       />
       <PageHeader
-        title={`Edit Attendance — ${str(course?.title)}`}
-        subtitle={`Section ${str(section?.name)} · Editing date ${date}.`}
+        title={`Attendance — ${str(course?.title)}`}
+        subtitle={`Section ${str(section?.name)} · Direct editing is unavailable for admins.`}
       />
-      <AttendanceTakeForm
-        offeringId={id}
-        offering={data}
-        initialDate={date}
-        lockDate
-        backHref={`/admin/course-offerings/${id}/attendance?tab=report`}
-        backLabel="Back to Attendance Report"
-        reportHref={`/admin/course-offerings/${id}/attendance?tab=report`}
-      />
+      <Card className="p-6 text-center">
+        <p className="text-sm font-medium text-slate-700">
+          Admins cannot edit attendance directly.
+        </p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+          Teachers take and edit attendance. When a teacher&apos;s edit quota is
+          reached, they submit a change request for admin approval.
+        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Link href={`/admin/course-offerings/${id}/attendance?tab=report`}>
+            <Button variant="outline">Back to Attendance Report</Button>
+          </Link>
+          <Link href="/admin/attendance?tab=approvals">
+            <Button>Review change requests</Button>
+          </Link>
+        </div>
+      </Card>
     </div>
   );
 }

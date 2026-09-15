@@ -2,15 +2,17 @@
 /**
  * AttendanceSessionStudentsDialog
  *
- * Read-only view of every student's CURRENT status in a single
- * AttendanceSession (roll, ID, name, status, direct corrections used).
- * Change history lives in AttendanceHistoryDrawer — the session list offers
- * the two as separate actions.
+ * Read-only view of every student's status in a single AttendanceSession.
+ * The backend returns the COMPLETE section roster (students without a record
+ * yet appear as NOT_MARKED) so the dialog can filter by roll on the frontend
+ * without pagination or extra endpoints.
  */
 
+import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge } from "@/components/ui";
+import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Input, Label } from "@/components/ui";
 import { get } from "@/lib/api/client";
+import { filterByRoll } from "@/modules/attendance/attendance.permissions";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -22,12 +24,13 @@ type RecordsPayload = {
     courseOffering: { course: { title: string; code: string }; section: { name: string } };
   };
   records: {
-    id: string;
+    id: string | null;
     rollNumber: number | null;
     studentId: string;
     studentName: string;
     studentEmail: string;
     status: string;
+    hasRecord: boolean;
     note: string | null;
     directCorrections: number;
   }[];
@@ -47,9 +50,20 @@ export function AttendanceSessionStudentsDialog({
     key,
     () => get<RecordsPayload>(`/attendance/sessions/${sessionId}/records`).then((r) => r.data),
   );
+  const [rollQuery, setRollQuery] = useState("");
+
+  const filtered = useMemo(
+    () => filterByRoll(data?.records ?? [], rollQuery),
+    [data, rollQuery],
+  );
+
+  function close() {
+    setRollQuery("");
+    onClose();
+  }
 
   return (
-    <Dialog open={open} title="Student Status" wide onClose={onClose}>
+    <Dialog open={open} title="Student Status" wide onClose={close}>
       {isLoading ? (
         <LoadingSkeleton />
       ) : error ? (
@@ -68,28 +82,54 @@ export function AttendanceSessionStudentsDialog({
             </div>
           </div>
 
+          <div className="max-w-xs">
+            <Label htmlFor="student-status-roll">Search by Roll</Label>
+            <Input
+              id="student-status-roll"
+              placeholder="e.g. 1023"
+              value={rollQuery}
+              onChange={(e) => setRollQuery(e.target.value)}
+              aria-label="Search by roll number"
+            />
+          </div>
+
           {data.records.length === 0 ? (
             <EmptyState title="No student records" />
+          ) : filtered.length === 0 ? (
+            <EmptyState title={`No students match roll "${rollQuery.trim()}"`} hint="Clear the search to see the full section list." />
           ) : (
-            <Table headers={["Roll", "Student ID", "Name", "Status", "Direct corrections"]}>
-              {data.records.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2 font-medium">{r.rollNumber ?? <span className="text-slate-400">—</span>}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{r.studentId}</td>
-                  <td className="px-4 py-2">
-                    <span className="flex flex-col">
-                      <span className="font-medium">{r.studentName}</span>
-                      <span className="text-[11px] text-slate-500">{r.studentEmail}</span>
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <StatusBadge status={r.status} />
-                    {r.note && <span className="mt-1 block text-[11px] text-slate-500">{r.note}</span>}
-                  </td>
-                  <td className="px-4 py-2 text-sm">{r.directCorrections}/2 used</td>
-                </tr>
-              ))}
-            </Table>
+            <>
+              {rollQuery.trim() && (
+                <p className="text-xs text-slate-500" role="status">
+                  Showing {filtered.length} of {data.records.length} students
+                </p>
+              )}
+              <Table headers={["Roll", "Student ID", "Name", "Status", "Direct corrections"]}>
+                {filtered.map((r) => (
+                  <tr key={r.id ?? `missing-${r.studentId}`} className="hover:bg-slate-50">
+                    <td className="px-4 py-2 font-medium">{r.rollNumber ?? <span className="text-slate-400">—</span>}</td>
+                    <td className="px-4 py-2 font-mono text-xs">{r.studentId}</td>
+                    <td className="px-4 py-2">
+                      <span className="flex flex-col">
+                        <span className="font-medium">{r.studentName}</span>
+                        <span className="text-[11px] text-slate-500">{r.studentEmail}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-2">
+                      {r.status === "NOT_MARKED" ? (
+                        <span className="text-sm text-slate-400">Not marked</span>
+                      ) : (
+                        <>
+                          <StatusBadge status={r.status} />
+                          {r.note && <span className="mt-1 block text-[11px] text-slate-500">{r.note}</span>}
+                        </>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-sm">{r.directCorrections}/2 used</td>
+                  </tr>
+                ))}
+              </Table>
+            </>
           )}
         </div>
       )}

@@ -11,6 +11,11 @@
 - Every protected endpoint enforces role + relationship checks in `src/lib/permissions/`.
 - Teachers: active `TeacherCourseAssignment` on the exact offering (attendance, marks,
   assessments, notices, schedules, students).
+- Attendance writes are teacher-only: `POST /attendance/sessions` and
+  `POST /attendance/change-requests` reject admins/students with 403.
+  The only admin path that changes attendance is approving a pending
+  `AttendanceChangeRequest` (transactional + audit-logged); the service layer
+  rejects admin writes defensively as a second layer.
 - Students: own records only (`requireStudentSelf`), enrollment membership for offerings.
 - Client-supplied IDs are never trusted (IDOR tests in `src/tests/e2e/`).
 

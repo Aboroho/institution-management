@@ -60,6 +60,8 @@ export function SearchableSelect({
   ariaLabel,
   className,
   minQuery = 0,
+  loading: externalLoading = false,
+  emptyMessage,
 }: {
   /** Static options, filtered client-side. Provide this OR `loadOptions`. */
   options?: SelectOption[];
@@ -75,6 +77,13 @@ export function SearchableSelect({
   className?: string;
   /** For `loadOptions`: minimum query length before searching. */
   minQuery?: number;
+  /**
+   * Async option loading (parent fetches options from the backend). Shows an
+   * inline spinner INSIDE the select trigger while true.
+   */
+  loading?: boolean;
+  /** Empty-state text when there are no options (e.g. "No semesters available"). */
+  emptyMessage?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -164,20 +173,22 @@ export function SearchableSelect({
     ? (list.find((o) => o.value === value)?.label ?? selectedLabel ?? "")
     : "";
 
+  const busy = loading || externalLoading;
   let hint: string | null = null;
-  if (loading) hint = "Searching...";
+  if (busy) hint = "Loading...";
   else if (loadOptions != null && query.trim().length < minQuery) hint = `Type at least ${minQuery} characters to search.`;
-  else if (filtered.length === 0) hint = q || loadOptions != null ? "No matches" : "No options";
+  else if (filtered.length === 0) hint = q || loadOptions != null ? "No matches" : (emptyMessage ?? "No options");
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
       <button
         ref={triggerRef}
         type="button"
-        disabled={disabled}
+        disabled={disabled || externalLoading}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        aria-busy={busy}
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
@@ -191,7 +202,11 @@ export function SearchableSelect({
         )}
       >
         <span className={cn("truncate", !value && "text-slate-400")}>{value ? displayLabel : placeholder}</span>
-        <ChevronDown size={16} className={cn("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+        {externalLoading ? (
+          <Loader2 size={16} className="shrink-0 animate-spin text-brand-600" aria-label="Loading options" />
+        ) : (
+          <ChevronDown size={16} className={cn("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+        )}
       </button>
       {open && (
         <div className="absolute left-0 right-0 z-30 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
