@@ -24,7 +24,11 @@ export type AttendanceReportItem = {
   createdAt: string;
   updatedAt: string;
   summary: AttendanceSessionSummary;
-  /** Number of modifications AFTER the initial entry (initial is excluded). */
+  /**
+   * Number of edit operations (saves / approved change requests) that changed
+   * at least one record AFTER the session was created. Initial creation is
+   * excluded, and one save touching many students counts as ONE update.
+   */
   updateCount: number;
 };
 

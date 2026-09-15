@@ -4,31 +4,50 @@
  *
  * Reusable take/edit attendance UI for a single CourseOffering + date.
  * Used by:
- *   - /teacher/course-offerings/[id]/attendance/take  (date picker)
- *   - /teacher/course-offerings/[id]/attendance/edit?date=YYYY-MM-DD (read-only date)
+ *   - the "Take Attendance" tab of the unified attendance page (date picker)
+ *   - the edit page (.../attendance/edit?date=YYYY-MM-DD, read-only date)
  *   - admin equivalents
  *
- * Backend authority is preserved: this component never overrides the
- * APPROVAL_REQUIRED response, it surfaces it to the user.
+ * Records that exhausted their direct corrections are reported back by the
+ * API (partial save) instead of aborting the whole edit; this component
+ * surfaces them so the teacher can file change requests for those rows.
  */
 
-import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { useEffect, useMemo, useState } from "react";
+import useSWR, { useSWRConfig } from "swr";
 import {
   Card, Button, Input, Select, Table, LoadingSkeleton, EmptyState, ErrorState,
   Label, Textarea, FieldError, StatusBadge, Spinner, Badge, Dialog,
 } from "@/components/ui";
-import { ChevronLeft, ChevronRight, History, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { get, post, ApiError } from "@/lib/api/client";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 const ATT = ["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const;
-const todayStr = () => new Date().toISOString().slice(0, 10);
+
+// Calendar-day arithmetic in UTC so the selected date never drifts with the
+// browser timezone or DST transitions.
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+};
 const shiftDate = (d: string, delta: number) => {
-  const x = new Date(d);
-  x.setDate(x.getDate() + delta);
-  return x.toISOString().slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if (!m) return todayStr();
+  const x = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  x.setUTCDate(x.getUTCDate() + delta);
+  return `${x.getUTCFullYear()}-${pad2(x.getUTCMonth() + 1)}-${pad2(x.getUTCDate())}`;
+};
+
+type SkippedRow = { recordId: string; studentId: string; currentStatus: string; reason: string };
+type SaveResult = {
+  sessionId: string;
+  isNewSession: boolean;
+  createdCount: number;
+  updatedCount: number;
+  skipped: SkippedRow[];
 };
 
 export function AttendanceTakeForm({
@@ -52,11 +71,30 @@ export function AttendanceTakeForm({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [warn, setWarn] = useState("");
   const [err, setErr] = useState("");
   const [reqDialog, setReqDialog] = useState<Row | null>(null);
   const [reqStatus, setReqStatus] = useState("PRESENT");
   const [reqReason, setReqReason] = useState("");
   const [submittingReq, setSubmittingReq] = useState(false);
+  const { mutate: globalMutate } = useSWRConfig();
+
+  // The edit page stays mounted when navigating between dates
+  // (.../edit?date=A -> .../edit?date=B), so follow prop changes instead of
+  // only using the first value. Without this the form kept showing (and
+  // saving!) the previous date's data.
+  useEffect(() => {
+    if (initialDate) setDate(initialDate);
+  }, [initialDate]);
+
+  // Per-date editing state must not leak into another date.
+  useEffect(() => {
+    setStatuses({});
+    setReason("");
+    setMsg("");
+    setWarn("");
+    setErr("");
+  }, [date]);
 
   // Pull offering details (students) once.
   const { data: offeringData, error: offeringErr, isLoading: offeringLoad } = useSWR(
@@ -81,21 +119,45 @@ export function AttendanceTakeForm({
     const c: Record<string, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
     for (const s of students) c[effective(str(s.id))] += 1;
     return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students, statuses, session]);
 
   async function save() {
-    setSaving(true); setMsg(""); setErr("");
+    setSaving(true); setMsg(""); setWarn(""); setErr("");
     try {
       const records = students.map((s) => ({ studentId: str(s.id), status: effective(str(s.id)) }));
-      await post("/attendance/sessions", {
+      const res = await post<SaveResult>("/attendance/sessions", {
         courseOfferingId: offeringId,
-        attendanceDate: new Date(date).toISOString(),
+        attendanceDate: new Date(`${date}T00:00:00.000Z`).toISOString(),
         records,
         reason: reason || undefined,
       });
-      setMsg("Attendance saved.");
+      const saved = res.data;
+      const changed = (saved.createdCount ?? 0) + (saved.updatedCount ?? 0);
+      const skipped = saved.skipped ?? [];
+      if (changed === 0 && skipped.length === 0) {
+        setMsg("No changes to save — attendance is already up to date.");
+      } else if (changed > 0) {
+        setMsg(
+          saved.isNewSession
+            ? `Attendance recorded for ${changed} student${changed === 1 ? "" : "s"}.`
+            : `Attendance updated (${changed} change${changed === 1 ? "" : "s"} saved).`,
+        );
+      }
+      if (skipped.length > 0) {
+        setWarn(
+          `${skipped.length} record${skipped.length === 1 ? "" : "s"} reached the direct-correction limit and ` +
+          `were not changed — use “Request change” on those rows for admin approval.`,
+        );
+      }
       setStatuses({}); setReason("");
       await mutate();
+      // Keep the Sessions/Report tab in sync (summaries + update counts).
+      await globalMutate(
+        (k) => typeof k === "string" && k.startsWith(`att-report-${offeringId}-`),
+        undefined,
+        { revalidate: true },
+      );
     } catch (e) {
       if (e instanceof ApiError && e.code === "APPROVAL_REQUIRED") {
         setErr("Correction limit reached — admin approval required. Use the change-request button on the specific record.");
@@ -187,6 +249,7 @@ export function AttendanceTakeForm({
           </Button>
         </div>
         {msg && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-700">{msg}</p>}
+        {warn && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">{warn}</p>}
         {err && <FieldError error={err} />}
       </Card>
 

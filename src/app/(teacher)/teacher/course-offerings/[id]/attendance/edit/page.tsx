@@ -37,7 +37,7 @@ function Content({ id }: { id: string }) {
         items={[
           { label: "My Courses", href: "/teacher/course-offerings" },
           { label: str(course?.title), href: `/teacher/course-offerings/${id}` },
-          { label: "Attendance Report", href: `/teacher/course-offerings/${id}/attendance/report` },
+          { label: "Attendance", href: `/teacher/course-offerings/${id}/attendance?tab=report` },
           { label: `Edit ${date}` },
         ]}
       />
@@ -45,7 +45,14 @@ function Content({ id }: { id: string }) {
         title={`Edit Attendance — ${str(course?.title)}`}
         subtitle={`Section ${str(section?.name)} · Editing date ${date}. Direct modifications are limited; further changes require admin approval.`}
       />
-      <AttendanceTakeForm offeringId={id} offering={data} initialDate={date} lockDate />
+      <AttendanceTakeForm
+        offeringId={id}
+        offering={data}
+        initialDate={date}
+        lockDate
+        backHref={`/teacher/course-offerings/${id}/attendance?tab=report`}
+        backLabel="Back to Attendance Report"
+      />
     </div>
   );
 }
