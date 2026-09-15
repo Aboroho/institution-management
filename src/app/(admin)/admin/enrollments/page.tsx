@@ -4,14 +4,15 @@ import useSWR, { useSWRConfig } from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, searchStudentOptions } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, StatusBadge, Input } from "@/components/ui";
-import { validateFields, validationDetails } from "@/lib/validation/form-errors";
+import { validateFields, validationDetails, rollNumberIssue, ROLL_MAX } from "@/lib/validation/form-errors";
 import { Plus, Pencil } from "lucide-react";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
-// Mirrors the API contract: every field below is required, and the roll number must be a
-// positive whole number that is unique inside the chosen section.
+// Mirrors the API contract: every field below is required. The roll number is required
+// too and validated by the shared rollNumberIssue rules (see save() below); it must be
+// unique inside the chosen section, which the API enforces.
 const ENROLLMENT_FIELDS = [
   { name: "studentId", label: "Student", required: true },
   { name: "academicYearId", label: "Academic year", required: true },
@@ -19,7 +20,6 @@ const ENROLLMENT_FIELDS = [
   { name: "semesterId", label: "Semester", required: true },
   { name: "shiftId", label: "Shift", required: true },
   { name: "sectionId", label: "Section", required: true },
-  { name: "rollNumber", label: "Roll number", required: true, type: "number" },
 ];
 
 export default function EnrollmentsPage() {
@@ -95,13 +95,10 @@ export default function EnrollmentsPage() {
   async function save() {
     if (saving) return;
     const errors = validateFields(ENROLLMENT_FIELDS, form);
-    const roll = Number(form.rollNumber);
-    // `validateFields` covers "required"/"number"; the API additionally rejects fractions
-    // and values below 1 and checks uniqueness inside the section.
-    if (!errors.rollNumber) {
-      if (!Number.isInteger(roll)) errors.rollNumber = ["Roll number must be a whole number."];
-      else if (roll < 1) errors.rollNumber = ["Roll number must be 1 or greater."];
-    }
+    // Roll number is required on every enrollment and mirrors the API rules
+    // (positive whole number, ≤ 999999). Section-scoped uniqueness stays API/DB-only.
+    const rollIssue = rollNumberIssue(form.rollNumber);
+    if (rollIssue) errors.rollNumber = [rollIssue];
     setFieldErrors(errors);
     setFormError("");
     if (Object.keys(errors).length) {
@@ -109,6 +106,7 @@ export default function EnrollmentsPage() {
       setFocusAttempt((n) => n + 1);
       return;
     }
+    const roll = Number(form.rollNumber);
     setSaving(true);
     try {
       await post("/enrollments", {
@@ -140,8 +138,9 @@ export default function EnrollmentsPage() {
 
   async function saveRoll() {
     if (!rollTarget) return;
+    const issue = rollNumberIssue(rollValue);
+    if (issue) { setRollError(issue); return; }
     const value = Number(rollValue);
-    if (!Number.isInteger(value) || value < 1) { setRollError("Enter a whole roll number of 1 or greater."); return; }
     setRollSaving(true); setRollError("");
     try {
       await patch(`/enrollments/${str(rollTarget.id)}`, { rollNumber: value });
@@ -237,7 +236,7 @@ export default function EnrollmentsPage() {
             <div>
               <Label required htmlFor="enrollment-roll-number">Roll number</Label>
               <Input
-                id="enrollment-roll-number" name="rollNumber" type="number" inputMode="numeric" min={1} step={1}
+                id="enrollment-roll-number" name="rollNumber" type="number" inputMode="numeric" required min={1} max={ROLL_MAX} step={1}
                 value={form.rollNumber ?? ""} placeholder="e.g. 12"
                 onChange={(e) => { setRollEdited(true); updateField("rollNumber", e.target.value); }}
                 aria-invalid={!!fieldErrors.rollNumber}
@@ -263,7 +262,7 @@ export default function EnrollmentsPage() {
           </p>
           <div>
             <Label required htmlFor="roll-edit-input">Roll number</Label>
-            <Input id="roll-edit-input" name="rollNumber" type="number" inputMode="numeric" min={1} step={1} value={rollValue} onChange={(e) => setRollValue(e.target.value)} aria-invalid={!!rollError} />
+            <Input id="roll-edit-input" name="rollNumber" type="number" inputMode="numeric" required min={1} max={ROLL_MAX} step={1} value={rollValue} onChange={(e) => setRollValue(e.target.value)} aria-invalid={!!rollError} />
             <FieldError error={rollError} />
           </div>
           <div className="flex justify-end gap-2">
