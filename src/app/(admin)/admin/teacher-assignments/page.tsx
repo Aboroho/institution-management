@@ -5,6 +5,7 @@ import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useTeachers, useOfferings } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge, Textarea } from "@/components/ui";
 import { Plus, ArrowLeftRight } from "lucide-react";
+import { CourseOfferingCell } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -51,11 +52,10 @@ export default function AssignmentsPage() {
         <EmptyState title="No assignments" action={<Button onClick={() => setAssignOpen(true)}><Plus size={16} /> Assign</Button>} />
       ) : (
         <>
-          <Table headers={["Course", "Section", "Teacher", "Since", "Status", "Actions"]}>
+          <Table headers={["Course offering", "Teacher", "Since", "Status", "Actions"]}>
             {items.map((r) => (
               <tr key={str(r.id)} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium">{str(((r.courseOffering as Row)?.course as Row)?.title)}</td>
-                <td className="px-4 py-3">{str(((r.courseOffering as Row)?.section as Row)?.name)}</td>
+                <td className="px-4 py-3"><CourseOfferingCell offering={r.courseOffering as Row} /></td>
                 <td className="px-4 py-3">{str(((r.teacher as Row)?.user as Row)?.name)} <span className="text-xs text-slate-400">({str((r.teacher as Row)?.employeeId)})</span></td>
                 <td className="px-4 py-3 text-slate-500">{str(r.assignedAt).slice(0, 10)}</td>
                 <td className="px-4 py-3">{r.isActive ? <Badge tone="green">Active</Badge> : <Badge>Closed</Badge>}</td>
@@ -85,7 +85,7 @@ export default function AssignmentsPage() {
           <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
             Current teacher loses access to attendance, marks and new notices. History stays attributed to them. The replacement gains access immediately.
           </div>
-          <div><Label>Course offering</Label><p className="text-sm font-medium">{subRow ? str(((subRow.courseOffering as Row)?.course as Row)?.title) : ""}</p></div>
+          <div><Label>Course offering</Label>{subRow ? <CourseOfferingCell offering={subRow.courseOffering as Row} /> : null}</div>
           <div><Label required>Replacement teacher</Label><SearchableSelect options={teachers} value={form.newTeacherId ?? ""} onChange={(v) => setForm({ ...form, newTeacherId: v })} clearLabel="Select..." /></div>
           <div><Label>Reason</Label><Textarea value={form.reason ?? ""} onChange={(e) => setForm({ ...form, reason: e.target.value })} /></div>
           <FieldError error={formError} />

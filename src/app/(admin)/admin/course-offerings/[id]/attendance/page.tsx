@@ -1,20 +1,24 @@
 "use client";
-import { Suspense, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState } from "@/components/ui";
+import { Suspense } from "react";
+import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState, Card } from "@/components/ui";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { AttendanceReportList } from "@/components/attendance/attendance-report-list";
+import { CourseOfferingBanner } from "@/components/course-offering-context";
+import { Eye } from "lucide-react";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
 
 /**
- * Admin attendance for one course offering — REPORT ONLY.
+ * Admin per-offering attendance — READ-ONLY.
  *
- * Admins must never see "Take Attendance" and must never edit attendance.
- * Legacy `?tab=take` URLs are normalized to `?tab=report` so old bookmarks
- * land on the read-only report instead of a (removed) take form.
+ * Product decision 2026-09-15 (overrides README §10 "Admin: may edit
+ * indefinitely"): admins inspect attendance entries and history, and approve
+ * teacher change requests from /admin/attendance. They cannot take or edit
+ * attendance, so this page has no Take tab and the report renders without the
+ * Edit action (`showEdit={false}`). Legacy `?tab=take` links land here and
+ * show the same read-only report.
  */
 export default function AdminAttendancePage({ params }: { params: { id: string } }) {
   return (
@@ -25,16 +29,6 @@ export default function AdminAttendancePage({ params }: { params: { id: string }
 }
 
 function Content({ id }: { id: string }) {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (searchParams.get("tab") !== "report") {
-      router.replace(`/admin/course-offerings/${id}/attendance?tab=report`);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
   const { data, error, isLoading } = useSWR(`off-${id}`, () =>
     get<Row>(`/course-offerings/${id}`).then((r) => r.data),
   );
@@ -43,7 +37,6 @@ function Content({ id }: { id: string }) {
   if (error || !data) return <ErrorState message="Failed to load course offering" />;
 
   const course = data.course as Row | undefined;
-  const section = data.section as Row | undefined;
 
   return (
     <div>
@@ -55,12 +48,20 @@ function Content({ id }: { id: string }) {
         ]}
       />
       <PageHeader
-        title={`Attendance Report — ${str(course?.title)}`}
-        subtitle={`Section ${str(section?.name)} · Historical sessions, student statuses and change history. Read-only: admins approve change requests instead of editing attendance.`}
+        title={`Attendance — ${str(course?.title)}`}
+        subtitle="Read-only report: per-session summaries, student statuses and full change history. Corrections arrive as teacher change requests in Attendance → Approvals."
       />
+      <CourseOfferingBanner offering={data} eyebrow="Viewing attendance for (read-only)" />
+      <Card className="mb-4 border-blue-100 bg-blue-50/60 p-3">
+        <p className="flex items-center gap-2 text-sm text-blue-900">
+          <Eye size={16} className="shrink-0" />
+          You are viewing as an admin. Attendance data cannot be changed here — use “Student Status” to see every entry and “History” for the immutable change log.
+        </p>
+      </Card>
       <AttendanceReportList
         offeringId={id}
-        offeringTitle={`${str(course?.title)} · ${str(section?.name)}`}
+        offering={data}
+        editBasePath={`/admin/course-offerings/${id}/attendance/edit`}
         showEdit={false}
       />
     </div>

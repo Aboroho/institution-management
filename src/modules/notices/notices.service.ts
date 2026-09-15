@@ -18,7 +18,7 @@ export async function listNotices(opts: {
     prisma.notice.findMany({
       where, orderBy: { publishedAt: "desc" }, skip: (opts.page - 1) * opts.limit, take: opts.limit,
       include: {
-        courseOffering: { include: { course: true, section: true } },
+        courseOffering: { include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true } },
         teacher: { include: { user: { select: { name: true } } } },
       },
     }),
@@ -55,6 +55,6 @@ export async function studentNotices(studentId: string) {
   return prisma.notice.findMany({
     where: { courseOfferingId: { in: offerings.map((o) => o.id) } },
     orderBy: { publishedAt: "desc" },
-    include: { courseOffering: { include: { course: true, section: true } }, teacher: { include: { user: { select: { name: true } } } } },
+    include: { courseOffering: { include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true } }, teacher: { include: { user: { select: { name: true } } } } },
   });
 }

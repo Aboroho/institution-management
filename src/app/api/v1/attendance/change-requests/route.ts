@@ -34,7 +34,10 @@ export async function POST(req: NextRequest) {
     }
     const rec = await prisma.attendanceRecord.findUnique({ where: { id: body.recordId }, include: { session: true } });
     if (!rec) { const { AppError } = await import("@/lib/errors/errors"); return fail(new AppError("NOT_FOUND", "Attendance record not found", 404)); }
-    await requireActiveTeacherAssignment(auth, rec.session.courseOfferingId);
+    // Teachers file change requests; admins review them. Admins cannot file
+    // requests (read-only except approvals, product decision 2026-09-15).
+    if (auth.role === "TEACHER") await requireActiveTeacherAssignment(auth, rec.session.courseOfferingId);
+    else { const { AppError } = await import("@/lib/errors/errors"); return fail(new AppError("FORBIDDEN", auth.role === "ADMIN" ? "Admins review change requests — filing is a teacher action." : "You do not have access to this resource", 403)); }
     const created = await createChangeRequest({ ...body, requestedById: auth.userId });
     await audit({ actorUserId: auth.userId, action: "attendanceChangeRequest.create", entityType: "AttendanceChangeRequest", entityId: created.id, newValues: created, ...requestMeta() });
     await notifyAdmins({

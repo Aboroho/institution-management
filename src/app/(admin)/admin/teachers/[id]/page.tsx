@@ -5,6 +5,7 @@ import Link from "next/link";
 import { get, patch, ApiError } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
 import { Pencil } from "lucide-react";
+import { CourseOfferingBadges } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -50,13 +51,31 @@ export default function TeacherDetail({ params }: { params: { id: string } }) {
         </div>
       )}
       {tab === "current" && (
-        <Table headers={["Course", "Section", "Semester", "Since"]}>
-          {active.map((a) => <tr key={str(a.id)}><td className="px-4 py-3"><Link href={`/admin/course-offerings/${(a.courseOffering as Row)?.id}`} className="text-brand-600 hover:underline">{str(((a.courseOffering as Row)?.course as Row)?.title)}</Link></td><td className="px-4 py-3">{str(((a.courseOffering as Row)?.section as Row)?.name)}</td><td className="px-4 py-3">{str(((a.courseOffering as Row)?.semester as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str(a.assignedAt).slice(0, 10)}</td></tr>)}
+        <Table headers={["Course offering", "Since"]}>
+          {active.map((a) => (
+            <tr key={str(a.id)}>
+              <td className="px-4 py-3">
+                <Link href={`/admin/course-offerings/${(a.courseOffering as Row)?.id}`} className="font-medium text-brand-600 hover:underline">{str(((a.courseOffering as Row)?.course as Row)?.title)}</Link>
+                <div className="mt-1.5"><CourseOfferingBadges offering={a.courseOffering as Row} /></div>
+              </td>
+              <td className="px-4 py-3 text-sm">{str(a.assignedAt).slice(0, 10)}</td>
+            </tr>
+          ))}
         </Table>
       )}
       {tab === "history" && (
-        <Table headers={["Course", "Section", "Since", "Until", "Status"]}>
-          {assignments.map((a) => <tr key={str(a.id)}><td className="px-4 py-3">{str(((a.courseOffering as Row)?.course as Row)?.title)}</td><td className="px-4 py-3">{str(((a.courseOffering as Row)?.section as Row)?.name)}</td><td className="px-4 py-3 text-sm">{str(a.assignedAt).slice(0, 10)}</td><td className="px-4 py-3 text-sm">{a.endedAt ? str(a.endedAt).slice(0, 10) : "—"}</td><td className="px-4 py-3">{a.isActive ? <Badge tone="green">Active</Badge> : <Badge>Closed</Badge>}</td></tr>)}
+        <Table headers={["Course offering", "Since", "Until", "Status"]}>
+          {assignments.map((a) => (
+            <tr key={str(a.id)}>
+              <td className="px-4 py-3">
+                <span className="font-medium text-slate-800">{str(((a.courseOffering as Row)?.course as Row)?.title)}</span>
+                <div className="mt-1.5"><CourseOfferingBadges offering={a.courseOffering as Row} /></div>
+              </td>
+              <td className="px-4 py-3 text-sm">{str(a.assignedAt).slice(0, 10)}</td>
+              <td className="px-4 py-3 text-sm">{a.endedAt ? str(a.endedAt).slice(0, 10) : "—"}</td>
+              <td className="px-4 py-3">{a.isActive ? <Badge tone="green">Active</Badge> : <Badge>Closed</Badge>}</td>
+            </tr>
+          ))}
         </Table>
       )}
       <Dialog open={editOpen} title="Edit teacher" onClose={() => setEditOpen(false)}>

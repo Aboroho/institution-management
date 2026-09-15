@@ -89,17 +89,21 @@ export function useTeachers() {
 export function useOfferings(params = "") {
   const { data } = useSWR(`opt-off-${params}`, () => get<Row[]>(`/course-offerings?limit=100${params}`).then((r) => r.data));
   return (data ?? []).map((r) => {
-    const label = `${str((r.course as Row)?.title)} · ${str((r.section as Row)?.name)}`;
+    // Full context in every offering option so staff pick the right course:
+    // Course (CODE) · Trade · Semester · Shift · Sec X
+    const label =
+      `${str((r.course as Row)?.title)} (${str((r.course as Row)?.code)}) · ` +
+      `${str((r.trade as Row)?.name)} · ${str((r.semester as Row)?.name)} · ` +
+      `${str((r.shift as Row)?.name)} · Sec ${str((r.section as Row)?.name)}`;
     return {
       value: str(r.id),
       label,
-      search: `${str((r.course as Row)?.title)} ${str((r.course as Row)?.code)} ${str((r.section as Row)?.name)}`.toLowerCase(),
-      academicYearId: str(r.academicYearId),
-      tradeId: str(r.tradeId),
-      semesterId: str(r.semesterId),
-      shiftId: str(r.shiftId),
-      sectionId: str(r.sectionId),
-      courseId: str(r.courseId),
+      search: [
+        str((r.course as Row)?.title), str((r.course as Row)?.code),
+        str((r.trade as Row)?.name), str((r.trade as Row)?.code),
+        str((r.semester as Row)?.name), str((r.shift as Row)?.name),
+        str((r.section as Row)?.name), str((r.academicYear as Row)?.name),
+      ].join(" ").toLowerCase(),
       row: r,
     };
   });

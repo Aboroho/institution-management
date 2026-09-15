@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { del, get, patch, ApiError } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, StatusBadge, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
 import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { CourseOfferingCell, CourseOfferingBadges } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -76,8 +77,8 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
       )}
       {tab === "attendance" && (
         !attendance ? <LoadingSkeleton rows={3} /> : attendance.length === 0 ? <p className="text-sm text-slate-500">No attendance records.</p> : (
-          <Table headers={["Course", "Classes", "Present", "Absent", "Late", "Excused", "%"]}>
-            {attendance.map((a) => <tr key={str((a.offering as Row)?.id)}><td className="px-4 py-3">{str(((a.offering as Row)?.course as Row)?.title)}</td><td className="px-4 py-3">{str(a.total)}</td><td className="px-4 py-3">{str(a.present)}</td><td className="px-4 py-3">{str(a.absent)}</td><td className="px-4 py-3">{str(a.late)}</td><td className="px-4 py-3">{str(a.excused)}</td><td className="px-4 py-3 font-bold">{str(a.percentage)}%</td></tr>)}
+          <Table headers={["Course offering", "Classes", "Present", "Absent", "Late", "Excused", "%"]}>
+            {attendance.map((a) => <tr key={str((a.offering as Row)?.id)}><td className="px-4 py-3"><CourseOfferingCell offering={a.offering as Row} /></td><td className="px-4 py-3">{str(a.total)}</td><td className="px-4 py-3">{str(a.present)}</td><td className="px-4 py-3">{str(a.absent)}</td><td className="px-4 py-3">{str(a.late)}</td><td className="px-4 py-3">{str(a.excused)}</td><td className="px-4 py-3 font-bold">{str(a.percentage)}%</td></tr>)}
           </Table>
         )
       )}
@@ -89,6 +90,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
               return (
                 <Card key={str((g.offering as Row)?.id)} className="p-4">
                   <p className="font-semibold">{str(((g.offering as Row)?.course as Row)?.title)} <span className="ml-2 text-sm font-normal text-slate-500">Final: {str(fin.percentage)}% · {str(fin.grade)} {fin.passed ? "· Pass" : "· Fail"}</span></p>
+                  <div className="mb-2 mt-1.5"><CourseOfferingBadges offering={g.offering as Row} /></div>
                   <Table headers={["Assessment", "Obtained", "Total", "%"]}>
                     {((g.assessments as Row[]) ?? []).map((a) => <tr key={str(a.id)}><td className="px-4 py-2 text-sm">{str(a.title)}</td><td className="px-4 py-2">{a.marksObtained === null || a.marksObtained === undefined ? "—" : str(a.marksObtained)}</td><td className="px-4 py-2">{str(a.totalMarks)}</td><td className="px-4 py-2">{a.marksObtained === null || a.marksObtained === undefined ? "—" : `${Math.round((Number(a.marksObtained) / Number(a.totalMarks)) * 1000) / 10}%`}</td></tr>)}
                   </Table>

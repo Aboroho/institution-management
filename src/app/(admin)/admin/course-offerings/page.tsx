@@ -79,15 +79,16 @@ export default function OfferingsPage() {
         <EmptyState title="No course offerings" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
-          <Table headers={["Course", "Section", "Semester", "Shift", "Teacher", "Status"]}>
+          <Table headers={["Course", "Trade", "Semester", "Shift", "Section", "Teacher", "Status"]}>
             {items.map((r) => {
               const teacher = (r.assignments as Row[] | undefined)?.[0];
               return (
                 <tr key={str(r.id)} className="hover:bg-slate-50">
                   <td className="px-4 py-3"><Link href={`/admin/course-offerings/${r.id}`} className="font-medium text-brand-600 hover:underline">{str((r.course as Row)?.title)}</Link><span className="ml-2 text-xs text-slate-400">{str((r.course as Row)?.code)}</span></td>
-                  <td className="px-4 py-3">{str((r.section as Row)?.name)}</td>
-                  <td className="px-4 py-3">{str((r.semester as Row)?.name)}</td>
-                  <td className="px-4 py-3">{str((r.shift as Row)?.name)}</td>
+                  <td className="px-4 py-3"><Badge tone="blue">{str((r.trade as Row)?.name)}</Badge></td>
+                  <td className="px-4 py-3"><Badge tone="violet">{str((r.semester as Row)?.name)}</Badge></td>
+                  <td className="px-4 py-3"><Badge tone="amber">{str((r.shift as Row)?.name)}</Badge></td>
+                  <td className="px-4 py-3"><Badge tone="green">{str((r.section as Row)?.name)}</Badge></td>
                   <td className="px-4 py-3">{teacher ? str(((teacher.teacher as Row)?.user as Row)?.name) : <span className="text-amber-600">Unassigned</span>}</td>
                   <td className="px-4 py-3">{r.isActive ? <Badge tone="green">Active</Badge> : <Badge>Inactive</Badge>}</td>
                 </tr>

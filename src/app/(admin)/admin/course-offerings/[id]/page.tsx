@@ -3,7 +3,8 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, patch } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, EmptyState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
-import { ClipboardCheck, BarChart3 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
+import { CourseOfferingBanner } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -32,6 +33,7 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Course Offerings", href: "/admin/course-offerings" }, { label: str((data.course as Row)?.title) }]} />
       <PageHeader title={`${str((data.course as Row)?.title)}`} subtitle={`${str((data.academicYear as Row)?.name)} · ${str((data.trade as Row)?.name)} · ${str((data.semester as Row)?.name)} · ${str((data.shift as Row)?.name)} · Section ${str((data.section as Row)?.name)}`} actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>} />
+      <CourseOfferingBanner offering={data} eyebrow="Course offering" />
       <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
@@ -68,8 +70,8 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
             <div className="flex items-start gap-3">
               <span className="rounded-lg bg-violet-50 p-2 text-violet-700"><BarChart3 size={20} /></span>
               <div className="flex-1">
-                <p className="font-semibold">Attendance Report</p>
-                <p className="mt-1 text-sm text-slate-500">Browse historical sessions, view summaries, audit changes. Read-only.</p>
+                <p className="font-semibold">Attendance Report (read-only)</p>
+                <p className="mt-1 text-sm text-slate-500">Browse historical sessions, view summaries, audit changes. Admins cannot take or edit attendance.</p>
                 <a
                   href={`/admin/course-offerings/${params.id}/attendance?tab=report`}
                   className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
@@ -81,15 +83,15 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
           </Card>
           <Card className="p-5">
             <div className="flex items-start gap-3">
-              <span className="rounded-lg bg-brand-50 p-2 text-brand-700"><ClipboardCheck size={20} /></span>
+              <span className="rounded-lg bg-amber-50 p-2 text-amber-700"><BarChart3 size={20} /></span>
               <div className="flex-1">
                 <p className="font-semibold">Change Requests</p>
-                <p className="mt-1 text-sm text-slate-500">Review teacher attendance corrections awaiting approval.</p>
+                <p className="mt-1 text-sm text-slate-500">Teacher corrections for this offering arrive as approval requests.</p>
                 <a
                   href="/admin/attendance?tab=approvals"
                   className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  Review Requests
+                  Open Approvals
                 </a>
               </div>
             </div>
