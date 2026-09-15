@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, searchStudentOptions } from "@/components/academic-options";
+import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, StatusBadge, Input } from "@/components/ui";
 import { validateFields, validationDetails, rollNumberIssue, ROLL_MAX } from "@/lib/validation/form-errors";
 import { Plus, Pencil } from "lucide-react";
@@ -79,7 +80,13 @@ export default function EnrollmentsPage() {
 
   /** Context selects clear the values (and errors) that no longer belong to the new context. */
   function updateContext(values: Record<string, string>) {
-    setForm((previous) => ({ ...previous, ...values }));
+    setForm((previous) => {
+      let next = { ...previous };
+      for (const [k, v] of Object.entries(values)) {
+        next = applyDependentChange(next, k, v);
+      }
+      return next;
+    });
     setFieldErrors((previous) => {
       const next = { ...previous };
       for (const key of Object.keys(values)) delete next[key];
@@ -89,7 +96,17 @@ export default function EnrollmentsPage() {
   }
 
   function openDialog() {
-    setForm({}); setFieldErrors({}); setFormError(""); setRollEdited(false); setDialog(true);
+    const defaults = getFilterDefaults(f, {
+      relevantFields: ["academicYearId", "tradeId", "semesterId", "shiftId", "sectionId"],
+      validOptions: {
+        semesterId: semesters,
+      },
+    });
+    setForm(defaults);
+    setFieldErrors({});
+    setFormError("");
+    setRollEdited(false);
+    setDialog(true);
   }
 
   async function save() {
@@ -152,8 +169,7 @@ export default function EnrollmentsPage() {
   }
 
   function setFilter(k: string, v: string) {
-    const nf = { ...f };
-    if (!v) delete nf[k]; else nf[k] = v;
+    const nf = applyFilterChange(f, k, v);
     setPage(1); setF(nf);
   }
 

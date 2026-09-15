@@ -4,6 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { get, post, ApiError } from "@/lib/api/client";
 import { useTrades, useSemesters, useCourses } from "@/components/academic-options";
+import { getFilterDefaults, applyDependentChange } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
@@ -28,6 +29,23 @@ export default function CurriculaPage() {
   const items = data ?? [];
   const formSemesters = useSemesters(form.tradeId || undefined);
 
+  function openCreate() {
+    const defaults = getFilterDefaults(
+      { tradeId, semesterId },
+      {
+        relevantFields: ["tradeId", "semesterId"],
+        validOptions: {
+          semesterId: semesters,
+        },
+      }
+    );
+    setForm(defaults);
+    setPicked([]);
+    setMakeActive(true);
+    setFormError("");
+    setDialog(true);
+  }
+
   async function save() {
     setSaving(true); setFormError("");
     try {
@@ -40,7 +58,7 @@ export default function CurriculaPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Curricula" }]} />
-      <PageHeader title="Curricula" subtitle="Trade + Semester → Courses. Only one curriculum per trade + semester can be active; older versions are kept for history." actions={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Curricula" subtitle="Trade + Semester → Courses. Only one curriculum per trade + semester can be active; older versions are kept for history." actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       <div className="mb-4 grid max-w-xl grid-cols-2 gap-2">
         <SearchableSelect options={trades} value={tradeId} onChange={(v) => { setTradeId(v); setSemesterId(""); }} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
         <Select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} aria-label="Semester">
@@ -48,7 +66,7 @@ export default function CurriculaPage() {
         </Select>
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load curricula" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No curricula" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New</Button>} />
+        <EmptyState title="No curricula" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <Table headers={["Name", "Trade", "Semester", "Version", "Courses", "Status"]}>
           {items.map((r) => (
@@ -66,8 +84,8 @@ export default function CurriculaPage() {
       <Dialog open={dialog} title="New curriculum (creates next version)" onClose={() => setDialog(false)} wide>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm({ ...form, tradeId: v, semesterId: "" })} clearLabel="Select..." /></div>
-            <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm({ ...form, semesterId: e.target.value })}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
+            <div><Label required>Trade</Label><SearchableSelect options={trades} value={form.tradeId ?? ""} onChange={(v) => setForm(applyDependentChange(form, "tradeId", v))} clearLabel="Select..." /></div>
+            <div><Label required>Semester</Label><Select value={form.semesterId ?? ""} onChange={(e) => setForm(applyDependentChange(form, "semesterId", e.target.value))}><option value="">Select...</option>{formSemesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
           </div>
           <div><Label required>Name</Label><Input value={form.name ?? ""} placeholder="2026 Curriculum" onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <label className="flex items-center gap-2 text-sm text-slate-700">

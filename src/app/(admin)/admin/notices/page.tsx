@@ -3,6 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
+import { getFilterDefaults } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, SearchableSelect, Textarea, Label, FieldError, Spinner, Pagination, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
@@ -23,6 +24,20 @@ export default function AdminNoticesPage() {
   const items = (data?.data ?? []) as Row[];
   const total = Number((data?.meta as Record<string, unknown> | undefined)?.total ?? items.length);
 
+  function openCreate() {
+    const defaults = getFilterDefaults(
+      { offeringId },
+      {
+        fieldMap: { offeringId: "courseOfferingId" },
+        relevantFields: ["courseOfferingId"],
+        validOptions: { courseOfferingId: offerings },
+      }
+    );
+    setForm(defaults);
+    setFormError("");
+    setDialog({ mode: "create" });
+  }
+
   async function save() {
     setSaving(true); setFormError("");
     try {
@@ -36,12 +51,12 @@ export default function AdminNoticesPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Notices" }]} />
-      <PageHeader title="Notices" subtitle="Course announcements. Students are notified." actions={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Notices" subtitle="Course announcements. Students are notified." actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       <div className="mb-4 max-w-md">
         <SearchableSelect options={offerings} value={offeringId} onChange={(v) => { setOfferingId(v); setPage(1); }} ariaLabel="Offering" clearLabel="All offerings" placeholder="All offerings" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load notices" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No notices" action={<Button onClick={() => { setForm({}); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+        <EmptyState title="No notices" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
           <Table headers={["Title", "Course", "Author", "Published", "Actions"]}>

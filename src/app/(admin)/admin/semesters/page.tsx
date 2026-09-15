@@ -3,6 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, patch, ApiError } from "@/lib/api/client";
 import { useTrades } from "@/components/academic-options";
+import { getFilterDefaults } from "@/components/filter-defaults";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Badge, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
@@ -20,6 +21,13 @@ export default function SemestersPage() {
     get<Row[]>(`/semesters${tradeId ? `?tradeId=${tradeId}` : ""}`).then((r) => r.data));
   const items = data ?? [];
 
+  function openCreate() {
+    const defaults = getFilterDefaults({ tradeId }, { relevantFields: ["tradeId"] });
+    setForm(defaults);
+    setFormError("");
+    setDialog({ mode: "create" });
+  }
+
   async function save() {
     setSaving(true); setFormError("");
     try {
@@ -33,13 +41,13 @@ export default function SemestersPage() {
   return (
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Semesters" }]} />
-      <PageHeader title="Semesters" subtitle="Per-trade, dynamic count — never hardcoded." actions={<Button onClick={() => { setForm({ tradeId }); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+      <PageHeader title="Semesters" subtitle="Per-trade, dynamic count — never hardcoded." actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       <div className="mb-4 max-w-xs">
         <Label>Filter by trade</Label>
         <SearchableSelect options={trades} value={tradeId} onChange={setTradeId} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
       </div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load semesters" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No semesters" hint="Create semesters per trade." action={<Button onClick={() => { setForm({ tradeId }); setDialog({ mode: "create" }); }}><Plus size={16} /> New</Button>} />
+        <EmptyState title="No semesters" hint="Create semesters per trade." action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <Table headers={["Semester", "Trade", "Number", "Status", "Actions"]}>
           {items.map((r) => (
