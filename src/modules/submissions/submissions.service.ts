@@ -30,7 +30,7 @@ export async function submitPdf(opts: {
   const { bucket } = await storage.put(opts.buffer, { key, contentType: "application/pdf" });
   const isLate = assessment.dueDate ? new Date() > assessment.dueDate : false;
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const existing = await tx.assessmentSubmission.findUnique({
       where: { assessmentId_studentId: { assessmentId: opts.assessmentId, studentId: opts.studentId } },
       include: { file: true },

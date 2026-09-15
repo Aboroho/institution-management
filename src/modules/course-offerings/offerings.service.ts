@@ -105,7 +105,7 @@ export async function getOffering(id: string) {
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
     orderBy: { rollNumber: "asc" },
   });
-  return { ...o, students: enrollments.map((e) => ({ ...e.student, rollNumber: e.rollNumber })) };
+  return { ...o, students: enrollments.map((e: any) => ({ ...e.student, rollNumber: e.rollNumber })) };
 }
 
 export async function updateOffering(id: string, data: Partial<{ isActive: boolean; courseId: string }>) {

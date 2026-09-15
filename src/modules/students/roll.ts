@@ -21,5 +21,5 @@ export async function nextSectionRollNumber(db: Prisma.TransactionClient, sectio
     where: { sectionId },
     select: { rollNumber: true },
   });
-  return nextRollNumber(rows.map((row) => row.rollNumber));
+  return nextRollNumber(rows.map((row: any) => row.rollNumber));
 }

@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge } from "@/components/ui";
+import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Label, Input } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import { filterByRoll } from "@/modules/attendance/attendance.permissions";
@@ -97,7 +97,7 @@ export function AttendanceSessionStudentsDialog({
               id="student-status-roll"
               placeholder="e.g. 1023"
               value={rollQuery}
-              onChange={(e) => setRollQuery(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRollQuery(e.target.value)}
               aria-label="Search by roll number"
             />
           </div>

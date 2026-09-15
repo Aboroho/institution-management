@@ -77,7 +77,7 @@ export async function createCurriculum(data: {
   });
   const version = (latest?.version ?? 0) + 1;
   const isActive = data.isActive ?? true;
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     // Business rule: only ONE active curriculum per trade + semester.
     if (isActive) {
       await tx.curriculum.updateMany({
@@ -90,7 +90,7 @@ export async function createCurriculum(data: {
     });
     if (data.courseIds?.length) {
       await tx.curriculumCourse.createMany({
-        data: data.courseIds.map((courseId, i) => ({ curriculumId: cur.id, courseId, order: i })),
+        data: data.courseIds.map((courseId: any, i: any) => ({ curriculumId: cur.id, courseId, order: i })),
         skipDuplicates: true,
       });
     }
@@ -129,7 +129,7 @@ export async function updateCurriculum(id: string, data: Partial<{ name: string;
   // Business rule: only ONE active curriculum per trade + semester.
   // Activating this one deactivates every other curriculum of the same trade + semester.
   if (data.isActive === true) {
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: any) => {
       await tx.curriculum.updateMany({
         where: { tradeId: existing.tradeId, semesterId: existing.semesterId, isActive: true, id: { not: id } },
         data: { isActive: false },

@@ -59,7 +59,7 @@ export async function createScheduleVersion(data: {
       }
     }
   }
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const latest = await tx.scheduleVersion.findFirst({
       where: { courseOfferingId: data.courseOfferingId },
       orderBy: { version: "desc" },
@@ -84,7 +84,7 @@ export async function createScheduleVersion(data: {
       },
     });
     await tx.scheduleItem.createMany({
-      data: data.items.map((i) => ({ ...i, scheduleVersionId: version.id })),
+      data: data.items.map((i: any) => ({ ...i, scheduleVersionId: version.id })),
     });
     return tx.scheduleVersion.findUnique({ where: { id: version.id }, include: { items: true } });
   });

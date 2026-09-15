@@ -64,7 +64,7 @@ export async function offeringStudentIds(courseOfferingId: string): Promise<stri
     },
     select: { studentId: true },
   });
-  return enrollments.map((e) => e.studentId);
+  return enrollments.map((e: any) => e.studentId);
 }
 
 export async function requireStudentInOffering(auth: AuthContext, courseOfferingId: string) {

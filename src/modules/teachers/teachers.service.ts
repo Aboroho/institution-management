@@ -37,7 +37,7 @@ export async function createTeacher(data: {
   if (eu) throw conflict("Email already in use");
   if (et) throw conflict("Employee ID already exists");
   const passwordHash = await hashPassword(data.password);
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const user = await tx.user.create({ data: { email, name: data.name, role: "TEACHER", passwordHash } });
     return tx.teacher.create({
       data: {
@@ -77,7 +77,7 @@ export async function updateTeacher(id: string, data: Partial<{
   const t = await prisma.teacher.findUnique({ where: { id } });
   if (!t) throw notFound("Teacher not found");
   const { name, isActive, ...rest } = data;
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     if (name !== undefined || isActive !== undefined) {
       await tx.user.update({ where: { id: t.userId }, data: {
         ...(name !== undefined ? { name } : {}),
@@ -145,7 +145,7 @@ export async function substituteTeacher(data: {
   const offering = await prisma.courseOffering.findUnique({ where: { id: data.courseOfferingId } });
   if (!offering) throw notFound("Course offering not found");
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const current = await tx.teacherCourseAssignment.findFirst({
       where: { courseOfferingId: data.courseOfferingId, isActive: true },
     });
