@@ -28,7 +28,9 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
       include: {
         courseOffering: {
           select: {
-            id: true, sectionId: true,
+            id: true,
+            // Foreign keys are needed to look up the section's ACTIVE enrollments below.
+            academicYearId: true, tradeId: true, semesterId: true, shiftId: true, sectionId: true,
             course: { select: { title: true, code: true } },
             section: { select: { name: true } },
             semester: { select: { name: true } },
