@@ -60,9 +60,9 @@ describe("Attendance Report — summary shape", () => {
 });
 
 describe("Attendance Report — update count rule", () => {
-  it("updateCount counts only modifications (not the initial entry)", () => {
-    // Rule: AttendanceChangeLog rows where `oldStatus IS NOT NULL` are
-    // counted; the initial-entry log (oldStatus = NULL) is excluded.
+  it("updateCount counts only edits after creation (not the initial entry)", () => {
+    // Rule: one save/approval that changed the session counts as ONE update no
+    // matter how many student records it touched; initial creation is excluded.
     const initialOnly = buildItem({ updateCount: 0 });
     expect(initialOnly.updateCount).toBe(0);
 

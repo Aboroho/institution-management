@@ -486,6 +486,11 @@ model AttendanceSession {
   attendanceDate   DateTime @db.Date
   createdById      String
   note             String?
+  // Number of edit operations that changed at least one record AFTER the
+  // session was created (initial creation is not an update). Incremented once
+  // per save/approval that modifies the session, no matter how many student
+  // records that operation touches. Rendered as "Updated N times".
+  updateCount      Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

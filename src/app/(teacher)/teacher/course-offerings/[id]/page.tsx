@@ -72,9 +72,9 @@ function StudentsTab({ offering }: { offering: Row }) {
 const ATT = ["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const;
 
 function AttendanceTab({ offeringId }: { offeringId: string; students: Row[] }) {
-  // Attendance is now handled by dedicated pages:
-  //   - Take Attendance: /teacher/course-offerings/[id]/attendance/take
-  //   - Attendance Report: /teacher/course-offerings/[id]/attendance/report
+  // Attendance lives on the unified attendance page with tabs:
+  //   - Take Attendance: /teacher/course-offerings/[id]/attendance?tab=take
+  //   - Attendance Report: /teacher/course-offerings/[id]/attendance?tab=report
   // This tab acts as a quick launcher so the existing in-page navigation
   // (tabs) keeps working without duplicating the workflow UI.
   return (
@@ -86,7 +86,7 @@ function AttendanceTab({ offeringId }: { offeringId: string; students: Row[] }) 
             <p className="font-semibold">Take Attendance</p>
             <p className="mt-1 text-sm text-slate-500">Record or update attendance for a specific date.</p>
             <a
-              href={`/teacher/course-offerings/${offeringId}/attendance/take`}
+              href={`/teacher/course-offerings/${offeringId}/attendance?tab=take`}
               className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
             >
               Open Take Attendance
@@ -101,7 +101,7 @@ function AttendanceTab({ offeringId }: { offeringId: string; students: Row[] }) 
             <p className="font-semibold">Attendance Report</p>
             <p className="mt-1 text-sm text-slate-500">Browse historical sessions, view summaries, audit changes.</p>
             <a
-              href={`/teacher/course-offerings/${offeringId}/attendance/report`}
+              href={`/teacher/course-offerings/${offeringId}/attendance?tab=report`}
               className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Open Attendance Report

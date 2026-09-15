@@ -71,7 +71,7 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
                 <p className="font-semibold">Take Attendance</p>
                 <p className="mt-1 text-sm text-slate-500">Record or update attendance for a specific date.</p>
                 <a
-                  href={`/admin/course-offerings/${params.id}/attendance/take`}
+                  href={`/admin/course-offerings/${params.id}/attendance?tab=take`}
                   className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
                 >
                   Open Take Attendance
@@ -86,7 +86,7 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
                 <p className="font-semibold">Attendance Report</p>
                 <p className="mt-1 text-sm text-slate-500">Browse historical sessions, view summaries, audit changes.</p>
                 <a
-                  href={`/admin/course-offerings/${params.id}/attendance/report`}
+                  href={`/admin/course-offerings/${params.id}/attendance?tab=report`}
                   className="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Open Attendance Report

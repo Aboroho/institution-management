@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
     const session = await prisma.attendanceSession.findUnique({
       where: { id: params.sessionId },
       include: {
-        courseOffering: { select: { id: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
+        courseOffering: { select: { id: true, sectionId: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
         records: {
           orderBy: { student: { studentId: "asc" } },
           include: {
@@ -41,14 +41,31 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
       return fail(new AppError("FORBIDDEN", "You do not have access to this resource", 403));
     }
 
+    // Roll numbers live on the enrollment (unique per section), not on the
+    // student — resolve them so the status view can show roll order.
+    const enrollments = await prisma.studentEnrollment.findMany({
+      where: {
+        sectionId: session.courseOffering.sectionId,
+        studentId: { in: session.records.map((r: { student: { id: string } }) => r.student.id) },
+      },
+      select: { studentId: true, rollNumber: true, status: true },
+    });
+    const rollByStudent = new Map<string, number>();
+    for (const e of enrollments) {
+      if (!rollByStudent.has(e.studentId) || e.status === "ACTIVE") {
+        rollByStudent.set(e.studentId, e.rollNumber);
+      }
+    }
+
     return ok({
       session: {
         id: session.id,
         attendanceDate: session.attendanceDate.toISOString().slice(0, 10),
         courseOffering: session.courseOffering,
       },
-      records: session.records.map((r: { id: string; status: string; note: string | null; directCorrections: number; student: { studentId: string; user: { name: string; email: string } } }) => ({
+      records: session.records.map((r: { id: string; status: string; note: string | null; directCorrections: number; student: { id: string; studentId: string; user: { name: string; email: string } } }) => ({
         id: r.id,
+        rollNumber: rollByStudent.get(r.student.id) ?? null,
         studentId: r.student.studentId,
         studentName: r.student.user.name,
         studentEmail: r.student.user.email,
