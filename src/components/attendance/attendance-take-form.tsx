@@ -107,10 +107,11 @@ export function AttendanceTakeForm({
   const resolvedOffering = offering ?? offeringData;
   const students = useMemo(() => (resolvedOffering?.students as Row[] | undefined) ?? [], [resolvedOffering]);
 
-  const { data: session, mutate, isLoading } = useSWR(
+  const { data: sessionData, mutate, isLoading } = useSWR(
     `t-att-${offeringId}-${date}`,
     () => get<Row | null>(`/attendance/sessions?courseOfferingId=${offeringId}&date=${date}`).then((r) => r.data),
   );
+  const session = sessionData as Row | null | undefined;
 
   const existingByStudent = new Map<string, Row>();
   for (const r of (session?.records as Row[] | undefined) ?? []) existingByStudent.set(str(r.studentId), r);
@@ -161,7 +162,7 @@ export function AttendanceTakeForm({
       await mutate();
       // Keep the Sessions/Report tab in sync (summaries + update counts).
       await globalMutate(
-        (k) => typeof k === "string" && k.startsWith(`att-report-${offeringId}-`),
+        (k: unknown) => typeof k === "string" && k.startsWith(`att-report-${offeringId}-`),
         undefined,
         { revalidate: true },
       );
@@ -193,6 +194,8 @@ export function AttendanceTakeForm({
     return <ErrorState message="Failed to load course offering" />;
   }
 
+  const hasSession = Boolean(session && (session as Row).id);
+
   return (
     <div>
       {backHref && (
@@ -201,7 +204,7 @@ export function AttendanceTakeForm({
         </a>
       )}
       <Card className="mb-4 p-4">
-        {session?.id && !lockDate && (
+        {hasSession && !lockDate && (
           <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
             Attendance has been recorded for <strong>{date}</strong>.{" "}
             <a href={reportHref ?? "#"} className="font-semibold underline hover:text-blue-950">

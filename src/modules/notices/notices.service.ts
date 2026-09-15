@@ -45,7 +45,7 @@ export async function studentNotices(studentId: string) {
   if (!enrollments.length) return [];
   const offerings = await prisma.courseOffering.findMany({
     where: {
-      OR: enrollments.map((e) => ({
+      OR: enrollments.map((e: any) => ({
         academicYearId: e.academicYearId, tradeId: e.tradeId, semesterId: e.semesterId,
         shiftId: e.shiftId, sectionId: e.sectionId,
       })),
@@ -53,7 +53,7 @@ export async function studentNotices(studentId: string) {
     select: { id: true },
   });
   return prisma.notice.findMany({
-    where: { courseOfferingId: { in: offerings.map((o) => o.id) } },
+    where: { courseOfferingId: { in: offerings.map((o: any) => o.id) } },
     orderBy: { publishedAt: "desc" },
     include: { courseOffering: { include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true } }, teacher: { include: { user: { select: { name: true } } } } },
   });

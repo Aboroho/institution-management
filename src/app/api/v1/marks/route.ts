@@ -39,8 +39,8 @@ export async function POST(req: NextRequest) {
     const results = await saveMarks({ ...body, actorUserId: auth.userId, isAdmin: auth.role === "ADMIN" });
     await audit({ actorUserId: auth.userId, action: "marks.save", entityType: "Assessment", entityId: body.assessmentId, newValues: { count: results.length }, ...requestMeta() });
     // Notify students about published marks.
-    const students = await prisma.student.findMany({ where: { id: { in: body.marks.map((m) => m.studentId) } }, select: { userId: true } });
-    await notify({ recipientIds: students.map((s) => s.userId), type: "MARK_PUBLISHED", title: `Marks published: ${a.title}`,
+    const students = await prisma.student.findMany({ where: { id: { in: body.marks.map((m: { studentId: string }) => m.studentId) } }, select: { userId: true } });
+    await notify({ recipientIds: students.map((s: { userId: string }) => s.userId), type: "MARK_PUBLISHED", title: `Marks published: ${a.title}`,
       message: `Your marks for ${a.title} have been published.`, resourceType: "Assessment", resourceId: a.id });
     return ok(results);
   } catch (e) { return fail(e); }

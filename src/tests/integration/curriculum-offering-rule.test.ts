@@ -63,7 +63,7 @@ describe.skipIf(!hasDb)("curriculum / offering business rules (requires DATABASE
     expect(a.isActive).toBe(false);
 
     // Re-activating A deactivates B.
-    await ctx.courses!.updateCurriculum(ctx.currAId, { isActive: true });
+    await ctx.courses!.updateCurriculum(ctx.currAId!, { isActive: true });
     const [a2, b2] = await Promise.all([
       p.curriculum.findUniqueOrThrow({ where: { id: ctx.currAId } }),
       p.curriculum.findUniqueOrThrow({ where: { id: ctx.currBId } }),
@@ -75,7 +75,7 @@ describe.skipIf(!hasDb)("curriculum / offering business rules (requires DATABASE
   it("getActiveCurriculum returns the single active curriculum with its courses", async () => {
     const active = await ctx.courses!.getActiveCurriculum(ctx.tradeId!, ctx.semesterId!);
     expect(active?.id).toBe(ctx.currAId);
-    expect(active?.courses.map((cc) => cc.courseId)).toContain(ctx.courseInCurr);
+    expect(active?.courses.map((cc: any) => cc.courseId)).toContain(ctx.courseInCurr);
   });
 
   it("allows offering a course that IS in the active curriculum", async () => {

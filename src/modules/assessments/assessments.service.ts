@@ -82,7 +82,7 @@ export async function studentAssessments(studentId: string) {
   if (!enrollments.length) return [];
   const offerings = await prisma.courseOffering.findMany({
     where: {
-      OR: enrollments.map((e) => ({
+      OR: enrollments.map((e: any) => ({
         academicYearId: e.academicYearId, tradeId: e.tradeId, semesterId: e.semesterId,
         shiftId: e.shiftId, sectionId: e.sectionId,
       })),
@@ -90,7 +90,7 @@ export async function studentAssessments(studentId: string) {
     },
     select: { id: true },
   });
-  const ids = offerings.map((o) => o.id);
+  const ids = offerings.map((o: any) => o.id);
   return prisma.assessment.findMany({
     where: { courseOfferingId: { in: ids }, isPublished: true },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],

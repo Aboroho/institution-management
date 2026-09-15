@@ -15,7 +15,7 @@ export async function saveMarks(opts: {
       throw businessRule(`Marks must be between 0 and ${assessment.totalMarks}`);
     }
   }
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const results = [];
     for (const m of opts.marks) {
       const existing = await tx.assessmentMark.findUnique({
@@ -124,7 +124,7 @@ export async function listMarkChangeRequests(opts: { status?: string; page: numb
 }
 
 export async function reviewMarkChangeRequest(id: string, opts: { approve: boolean; reviewedById: string; reviewNote?: string }) {
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const req = await tx.assessmentMarkChangeRequest.findUnique({ where: { id } });
     if (!req) throw notFound("Change request not found");
     if (req.status !== "PENDING") throw businessRule("Request already reviewed");
@@ -150,7 +150,7 @@ export async function studentOfferingGrades(studentId: string) {
   if (!enrollments.length) return [];
   const offerings = await prisma.courseOffering.findMany({
     where: {
-      OR: enrollments.map((e) => ({
+      OR: enrollments.map((e: any) => ({
         academicYearId: e.academicYearId, tradeId: e.tradeId, semesterId: e.semesterId,
         shiftId: e.shiftId, sectionId: e.sectionId,
       })),
@@ -161,7 +161,7 @@ export async function studentOfferingGrades(studentId: string) {
       assessments: { include: { marks: { where: { studentId } } } },
     },
   });
-  return offerings.map((o) => {
+  return offerings.map((o: any) => {
     const items: GradableAssessment[] = o.assessments.map((a: any) => ({
       id: a.id, totalMarks: a.totalMarks, passMarks: a.passMarks,
       countsTowardFinal: a.countsTowardFinal, weight: a.weight,

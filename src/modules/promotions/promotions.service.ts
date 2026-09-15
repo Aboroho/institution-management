@@ -29,12 +29,12 @@ export async function evaluateEligibility(opts: {
     include: { course: true, assessments: { include: { marks: true } } },
   });
 
-  return enrollments.map((en) => {
+  return enrollments.map((en: any) => {
     let passedAll = true;
     let gradedAll = true;
     const perCourse = offerings
-      .filter((o) => o.sectionId === en.sectionId)
-      .map((o) => {
+      .filter((o: any) => o.sectionId === en.sectionId)
+      .map((o: any) => {
         const items: GradableAssessment[] = o.assessments.map((a: any) => ({
           id: a.id, totalMarks: a.totalMarks, passMarks: a.passMarks,
           countsTowardFinal: a.countsTowardFinal, weight: a.weight,
@@ -60,7 +60,7 @@ export async function executePromotion(opts: {
   decidedById: string;
 }) {
   if (!opts.items.length) throw businessRule("No students selected");
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const results = [];
     for (const item of opts.items) {
       const from = await tx.studentEnrollment.findUnique({ where: { id: item.enrollmentId } });
@@ -75,7 +75,7 @@ export async function executePromotion(opts: {
       if (item.decision === "PROMOTED") {
         // Destination: next semester by number within same trade, same section context unless overridden.
         const semesters = await tx.semester.findMany({ where: { tradeId: from.tradeId }, orderBy: { number: "asc" } });
-        const idx = semesters.findIndex((s) => s.id === from.semesterId);
+        const idx = semesters.findIndex((s: any) => s.id === from.semesterId);
         const next = opts.toSemesterId
           ? await tx.semester.findUnique({ where: { id: opts.toSemesterId } })
           : semesters[idx + 1];
