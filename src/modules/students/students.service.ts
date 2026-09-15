@@ -3,19 +3,6 @@ import { conflict, notFound, businessRule } from "@/lib/errors/errors";
 import { hashPassword } from "@/lib/auth/password";
 import { nextSectionRollNumber } from "@/modules/students/roll";
 
-/** Field-level conflict details so the enrollment form can highlight the roll input. */
-function rollNumberConflict(sectionName: string, rollNumber: number) {
-  const message = `Roll number ${rollNumber} is already used in section ${sectionName}. Roll numbers must be unique inside a section.`;
-  return conflict(message, { fieldErrors: { rollNumber: [message] }, rollNumber });
-}
-
-function uniqueConstraintFields(error: unknown): string[] {
-  if (typeof error !== "object" || error === null) return [];
-  const target = (error as { meta?: { target?: unknown } }).meta?.target;
-  if (Array.isArray(target)) return target.map(String);
-  return typeof target === "string" ? [target] : [];
-}
-
 export async function listStudents(opts: {
   search?: string; academicYearId?: string; tradeId?: string; semesterId?: string;
   shiftId?: string; sectionId?: string; status?: string; isActive?: boolean;
@@ -59,17 +46,10 @@ export async function listStudents(opts: {
   return { items, total };
 }
 
-/**
- * A student cannot exist without a roll number. Creation now requires the full academic
- * context plus a roll number that is unique inside the chosen section. The student, user
- * and initial enrollment are created atomically so there is never a student without a roll.
- */
 export async function createStudent(data: {
   name: string; email: string; password: string; studentId: string;
   dateOfBirth?: string; gender?: string; phone?: string; address?: string;
   guardianName?: string; guardianPhone?: string;
-  academicYearId: string; tradeId: string; semesterId: string; shiftId: string; sectionId: string;
-  rollNumber: number;
 }) {
   const email = data.email.toLowerCase().trim();
   const [eu, es] = await Promise.all([
@@ -78,73 +58,21 @@ export async function createStudent(data: {
   ]);
   if (eu) throw conflict("Email already in use");
   if (es) throw conflict("Student ID already exists");
-
-  const section = await prisma.section.findUnique({ where: { id: data.sectionId } });
-  if (!section) throw notFound("Section not found");
-  if (
-    section.academicYearId !== data.academicYearId ||
-    section.tradeId !== data.tradeId ||
-    section.semesterId !== data.semesterId ||
-    section.shiftId !== data.shiftId
-  ) {
-    throw businessRule("Section does not match the selected academic context");
-  }
-
-  // Pre-check for a friendly field error; the unique index remains the authority for races.
-  const taken = await prisma.studentEnrollment.findUnique({
-    where: { sectionId_rollNumber: { sectionId: data.sectionId, rollNumber: data.rollNumber } },
-  });
-  if (taken) throw rollNumberConflict(section.name, data.rollNumber);
-
   const passwordHash = await hashPassword(data.password);
-  try {
-    return await prisma.$transaction(async (tx) => {
-      // Re-check inside transaction to guard against concurrent inserts
-      const takenInTx = await tx.studentEnrollment.findUnique({
-        where: { sectionId_rollNumber: { sectionId: data.sectionId, rollNumber: data.rollNumber } },
-      });
-      if (takenInTx) throw rollNumberConflict(section.name, data.rollNumber);
-
-      const user = await tx.user.create({ data: { email, name: data.name, role: "STUDENT", passwordHash } });
-      const student = await tx.student.create({
-        data: {
-          userId: user.id, studentId: data.studentId,
-          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
-          gender: data.gender, phone: data.phone, address: data.address,
-          guardianName: data.guardianName, guardianPhone: data.guardianPhone,
-          admissionDate: new Date(),
-        },
-        include: { user: { select: { id: true, name: true, email: true } } },
-      });
-      const enrollment = await tx.studentEnrollment.create({
-        data: {
-          studentId: student.id,
-          academicYearId: data.academicYearId,
-          tradeId: data.tradeId,
-          semesterId: data.semesterId,
-          shiftId: data.shiftId,
-          sectionId: data.sectionId,
-          rollNumber: data.rollNumber,
-          status: "ACTIVE",
-        },
-      });
-      return { ...student, enrollment };
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({ data: { email, name: data.name, role: "STUDENT", passwordHash } });
+    const student = await tx.student.create({
+      data: {
+        userId: user.id, studentId: data.studentId,
+        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+        gender: data.gender, phone: data.phone, address: data.address,
+        guardianName: data.guardianName, guardianPhone: data.guardianPhone,
+        admissionDate: new Date(),
+      },
+      include: { user: { select: { id: true, name: true, email: true } } },
     });
-  } catch (error) {
-    // Preserve our own conflict errors (roll duplicate, etc.)
-    if (typeof error === "object" && error !== null && "code" in error) {
-      const code = (error as { code?: unknown }).code;
-      if (code === "CONFLICT" || code === "BUSINESS_RULE" || code === "NOT_FOUND") throw error;
-      if (code === "P2002") {
-        const fields = uniqueConstraintFields(error);
-        if (fields.includes("rollNumber") || fields.join(",").includes("rollNumber")) {
-          throw rollNumberConflict(section.name, data.rollNumber);
-        }
-        throw conflict("Duplicate student or enrollment");
-      }
-    }
-    throw error;
-  }
+    return student;
+  });
 }
 
 export async function getStudent(id: string) {
@@ -270,6 +198,19 @@ export async function listEnrollments(opts: {
     }),
   ]);
   return { items, total };
+}
+
+/** Field-level conflict details so the enrollment form can highlight the roll input. */
+function rollNumberConflict(sectionName: string, rollNumber: number) {
+  const message = `Roll number ${rollNumber} is already used in section ${sectionName}. Roll numbers must be unique inside a section.`;
+  return conflict(message, { fieldErrors: { rollNumber: [message] }, rollNumber });
+}
+
+function uniqueConstraintFields(error: unknown): string[] {
+  if (typeof error !== "object" || error === null) return [];
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  if (Array.isArray(target)) return target.map(String);
+  return typeof target === "string" ? [target] : [];
 }
 
 /** Highest roll number in use inside a section, so the next one can be suggested. */
