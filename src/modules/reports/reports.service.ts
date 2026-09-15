@@ -200,7 +200,7 @@ export async function teacherDashboard(teacherId: string) {
     include: {
       courseOffering: {
         include: {
-          course: true, section: true, semester: true,
+          course: true, section: true, semester: true, trade: true, shift: true, academicYear: true,
           assessments: { where: { dueDate: { gte: new Date() } }, orderBy: { dueDate: "asc" }, take: 5 },
           notices: { orderBy: { publishedAt: "desc" }, take: 5 },
           schedules: { where: { isActive: true }, include: { items: true } },

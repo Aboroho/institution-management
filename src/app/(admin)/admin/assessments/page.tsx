@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
 import { PageHeader, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Pagination, Breadcrumbs, Badge, Card } from "@/components/ui";
+import { CourseOfferingCell } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -34,7 +35,7 @@ export default function AdminAssessmentsPage() {
             {items.map((a) => (
               <tr key={str(a.id)} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium">{str(a.title)}</td>
-                <td className="px-4 py-3 text-sm">{str(((a.courseOffering as Row)?.course as Row)?.title)} · {str(((a.courseOffering as Row)?.section as Row)?.name)}</td>
+                <td className="px-4 py-3 text-sm"><CourseOfferingCell offering={a.courseOffering as Row} /></td>
                 <td className="px-4 py-3"><Badge tone="blue">{str(a.type)}</Badge></td>
                 <td className="px-4 py-3">{str(a.totalMarks)}</td>
                 <td className="px-4 py-3 text-sm">{a.dueDate ? str(a.dueDate).slice(0, 10) : "—"}</td>

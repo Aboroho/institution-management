@@ -106,7 +106,13 @@ export async function listMarkChangeRequests(opts: { status?: string; page: numb
         mark: {
           include: {
             student: { include: { user: { select: { name: true } } } },
-            assessment: { include: { courseOffering: { include: { course: true, section: true } } } },
+            assessment: {
+              include: {
+                courseOffering: {
+                  include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true },
+                },
+              },
+            },
           },
         },
         requestedBy: { select: { name: true, email: true } },
@@ -151,7 +157,7 @@ export async function studentOfferingGrades(studentId: string) {
       isActive: true,
     },
     include: {
-      course: true, section: true,
+      course: true, section: true, semester: true, trade: true, shift: true, academicYear: true,
       assessments: { include: { marks: { where: { studentId } } } },
     },
   });
@@ -163,7 +169,10 @@ export async function studentOfferingGrades(studentId: string) {
     }));
     const result = computeFinalGrade(items);
     return {
-      offering: { id: o.id, course: o.course, section: o.section },
+      offering: {
+        id: o.id, course: o.course, section: o.section, semester: o.semester,
+        trade: o.trade, shift: o.shift, academicYear: o.academicYear,
+      },
       assessments: o.assessments.map((a: any) => ({
         id: a.id, title: a.title, type: a.type, totalMarks: a.totalMarks, passMarks: a.passMarks,
         weight: a.weight, countsTowardFinal: a.countsTowardFinal,

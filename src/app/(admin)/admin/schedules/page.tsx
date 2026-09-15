@@ -5,6 +5,7 @@ import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useOfferings } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Card } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
+import { CourseOfferingBadges } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -62,7 +63,17 @@ export default function SchedulesPage() {
           {versions.map((v) => (
             <Card key={str(v.id)} className="p-4">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold">{str(((v.courseOffering as Row)?.course as Row)?.title)} · {str(((v.courseOffering as Row)?.section as Row)?.name)} <span className="text-xs font-normal text-slate-400">v{str(v.version)} · from {str(v.effectiveFrom).slice(0, 10)}</span></p>
+                <div>
+                  <p className="font-semibold">
+                    {str(((v.courseOffering as Row)?.course as Row)?.title)}{" "}
+                    <span className="text-xs font-normal text-slate-400">
+                      {str(((v.courseOffering as Row)?.course as Row)?.code)} · v{str(v.version)} · from {str(v.effectiveFrom).slice(0, 10)}
+                    </span>
+                  </p>
+                  <div className="mt-1.5">
+                    <CourseOfferingBadges offering={v.courseOffering as Row} />
+                  </div>
+                </div>
               </div>
               <Table headers={["Day", "Start", "End", "Room"]}>
                 {((v.items as Row[]) ?? []).map((it, i) => (

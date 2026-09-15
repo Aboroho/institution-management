@@ -5,6 +5,7 @@ import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState } from "@/componen
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { AttendanceTakeForm } from "@/components/attendance/attendance-take-form";
+import { CourseOfferingBanner } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -45,6 +46,7 @@ function Content({ id }: { id: string }) {
         title={`Edit Attendance — ${str(course?.title)}`}
         subtitle={`Section ${str(section?.name)} · Editing date ${date}. Direct modifications are limited; further changes require admin approval.`}
       />
+      <CourseOfferingBanner offering={data} eyebrow="Editing attendance for" />
       <AttendanceTakeForm
         offeringId={id}
         offering={data}

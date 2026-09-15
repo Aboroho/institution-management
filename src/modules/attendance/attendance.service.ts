@@ -66,6 +66,13 @@ export type AttendanceSaveResult = {
  * reported back (so the teacher can file a change request for it) instead of
  * aborting the whole save — previously one at-limit record discarded every
  * other valid correction in the same edit.
+ *
+ * NOTE (product decision 2026-09-15, overrides README §10 "Admin: may edit
+ * indefinitely"): admins are READ-ONLY for attendance. They inspect sessions,
+ * view history, and approve/reject teacher change requests, but they cannot
+ * save attendance directly. The API layer rejects admin saves with 403, so the
+ * `isAdmin` bypass below is retained only for backwards compatibility of the
+ * service signature and unit tests — it is unreachable via the REST API.
  */
 export async function saveSessionAttendance(opts: {
   courseOfferingId: string; attendanceDate: Date; records: { studentId: string; status: AttendanceStatus; note?: string }[];
@@ -276,7 +283,17 @@ export async function getSessionHistory(sessionId: string) {
   const session = await prisma.attendanceSession.findUnique({
     where: { id: sessionId },
     include: {
-      courseOffering: { select: { id: true, course: { select: { title: true, code: true } }, section: { select: { name: true } } } },
+      courseOffering: {
+        select: {
+          id: true,
+          course: { select: { title: true, code: true } },
+          section: { select: { name: true } },
+          semester: { select: { name: true } },
+          trade: { select: { name: true, code: true } },
+          shift: { select: { name: true } },
+          academicYear: { select: { name: true } },
+        },
+      },
     },
   });
   if (!session) throw notFound("Attendance session not found");
@@ -424,7 +441,20 @@ export async function listChangeRequests(opts: { status?: string; courseOffering
         record: {
           include: {
             student: { include: { user: { select: { name: true } } } },
-            session: { include: { courseOffering: { include: { course: true, section: true } } } },
+            session: {
+              include: {
+                courseOffering: {
+                  include: {
+                    course: true,
+                    section: true,
+                    semester: true,
+                    trade: true,
+                    shift: true,
+                    academicYear: true,
+                  },
+                },
+              },
+            },
           },
         },
         requestedBy: { select: { name: true, email: true } },
@@ -489,7 +519,7 @@ export async function studentAttendanceSummary(studentId: string, courseOffering
   }
   const offerings = await prisma.courseOffering.findMany({
     where: { id: { in: [...byOffering.keys()] } },
-    include: { course: true, section: true },
+    include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true },
   });
   return offerings.map((o) => {
     const s = byOffering.get(o.id)!;

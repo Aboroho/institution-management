@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { AttendanceTakeForm } from "@/components/attendance/attendance-take-form";
 import { AttendanceReportList } from "@/components/attendance/attendance-report-list";
+import { CourseOfferingBanner } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -58,12 +59,17 @@ function Content({ id }: { id: string }) {
         title={`Attendance — ${str(course?.title)}`}
         subtitle={`Section ${str(section?.name)} · Take attendance for a date, or review past sessions, statuses and change history.`}
       />
+      <CourseOfferingBanner
+        offering={data}
+        eyebrow={tab === "take" ? "Taking attendance for" : "Viewing attendance for"}
+      />
       <Tabs tabs={TABS} active={tab} onChange={switchTab} />
       {tab === "take" ? (
         <AttendanceTakeForm offeringId={id} offering={data} />
       ) : (
         <AttendanceReportList
           offeringId={id}
+          offering={data}
           offeringTitle={`${str(course?.title)} · ${str(section?.name)}`}
           editBasePath={`/teacher/course-offerings/${id}/attendance/edit`}
         />

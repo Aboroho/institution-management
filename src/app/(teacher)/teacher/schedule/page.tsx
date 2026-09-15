@@ -2,6 +2,7 @@
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { PageHeader, Card, Table, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs } from "@/components/ui";
+import { CourseOfferingBadges } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -18,7 +19,10 @@ export default function TeacherSchedule() {
         <div className="space-y-3">
           {versions.map((v) => (
             <Card key={str(v.id)} className="p-4">
-              <p className="mb-2 font-semibold">{str(((v.courseOffering as Row)?.course as Row)?.title)} · {str(((v.courseOffering as Row)?.section as Row)?.name)}</p>
+              <p className="font-semibold">{str(((v.courseOffering as Row)?.course as Row)?.title)}</p>
+              <div className="mb-2 mt-1.5">
+                <CourseOfferingBadges offering={v.courseOffering as Row} />
+              </div>
               <Table headers={["Day", "Start", "End", "Room"]}>
                 {((v.items as Row[]) ?? []).map((it, i) => <tr key={i}><td className="px-4 py-2">{DAYS[Number(it.weekday)]}</td><td className="px-4 py-2">{str(it.startTime)}</td><td className="px-4 py-2">{str(it.endTime)}</td><td className="px-4 py-2">{str(it.room || it.lab || "—")}</td></tr>)}
               </Table>

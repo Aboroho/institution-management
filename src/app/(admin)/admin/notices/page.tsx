@@ -5,6 +5,7 @@ import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, SearchableSelect, Textarea, Label, FieldError, Spinner, Pagination, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
+import { CourseOfferingCell } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -48,7 +49,7 @@ export default function AdminNoticesPage() {
             {items.map((n) => (
               <tr key={str(n.id)} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium">{str(n.title)}</td>
-                <td className="px-4 py-3 text-sm">{str(((n.courseOffering as Row)?.course as Row)?.title)} · {str(((n.courseOffering as Row)?.section as Row)?.name)}</td>
+                <td className="px-4 py-3 text-sm"><CourseOfferingCell offering={n.courseOffering as Row} /></td>
                 <td className="px-4 py-3 text-sm">{str(((n.teacher as Row)?.user as Row)?.name)}</td>
                 <td className="px-4 py-3 text-sm text-slate-500">{str(n.publishedAt).slice(0, 10)}</td>
                 <td className="px-4 py-3">

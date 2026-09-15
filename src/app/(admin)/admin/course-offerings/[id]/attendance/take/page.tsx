@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 
 /**
- * Legacy URL: take/report now live as tabs on the unified attendance page.
- * Kept as a redirect so bookmarks and old links don't break.
+ * Legacy URL. Admins are read-only for attendance (product decision
+ * 2026-09-15), so the old take-attendance bookmark lands on the read-only
+ * report instead of a take form.
  */
 export default function AdminTakeAttendanceRedirect({ params }: { params: { id: string } }) {
-  redirect(`/admin/course-offerings/${params.id}/attendance?tab=take`);
+  redirect(`/admin/course-offerings/${params.id}/attendance?tab=report`);
 }

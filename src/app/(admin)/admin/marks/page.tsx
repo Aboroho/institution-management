@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
 import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Breadcrumbs, Tabs, Card, Badge } from "@/components/ui";
+import { CourseOfferingCell } from "@/components/course-offering-context";
 import { useSearchParams } from "next/navigation";
 
 type Row = Record<string, unknown>;
@@ -71,13 +72,18 @@ function MarksContent() {
           <Table headers={["Teacher", "Assessment", "Student", "Change", "Reason", "Requested", "Actions"]}>
             {(reqData?.data ?? []).map((r) => {
               const mark = r.mark as Row | undefined;
-              const assessmentTitle = str(((mark?.assessment as Row | undefined))?.title);
+              const assessment = mark?.assessment as Row | undefined;
+              const assessmentTitle = str(assessment?.title);
+              const offeringRow = assessment?.courseOffering as Row | undefined;
               const markStudent = mark?.student as Row | undefined;
               const markStudentName = str(((markStudent?.user as Row | undefined))?.name);
               return (
               <tr key={str(r.id)} className="hover:bg-slate-50">
                 <td className="px-4 py-3">{str((r.requestedBy as Row)?.name)}</td>
-                <td className="px-4 py-3 text-sm">{assessmentTitle}</td>
+                <td className="px-4 py-3 text-sm">
+                  <span className="mb-1 block font-medium text-slate-800">{assessmentTitle}</span>
+                  <CourseOfferingCell offering={offeringRow} />
+                </td>
                 <td className="px-4 py-3">{markStudentName}</td>
                 <td className="px-4 py-3 font-medium">{str(r.oldMarks)} → {str(r.newMarks)}</td>
                 <td className="px-4 py-3 text-sm text-slate-600">{str(r.reason).slice(0, 80)}</td>

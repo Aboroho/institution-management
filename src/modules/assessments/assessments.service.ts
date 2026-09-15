@@ -14,7 +14,9 @@ export async function listAssessments(opts: {
       where, orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
       skip: (opts.page - 1) * opts.limit, take: opts.limit,
       include: {
-        courseOffering: { include: { course: true, section: true } },
+        courseOffering: {
+          include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true },
+        },
         createdBy: { select: { name: true, email: true } },
         _count: { select: { submissions: true, marks: true } },
       },
@@ -93,7 +95,7 @@ export async function studentAssessments(studentId: string) {
     where: { courseOfferingId: { in: ids }, isPublished: true },
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
     include: {
-      courseOffering: { include: { course: true, section: true } },
+      courseOffering: { include: { course: true, section: true, semester: true, trade: true, shift: true, academicYear: true } },
       submissions: { where: { studentId } },
       marks: { where: { studentId } },
     },
