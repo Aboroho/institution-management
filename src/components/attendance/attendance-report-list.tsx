@@ -6,7 +6,7 @@
  * a date-range filter and History/Edit actions per row.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
@@ -68,12 +68,6 @@ export function AttendanceReportList({
   const [appliedTo, setAppliedTo] = useState("");
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [studentsFor, setStudentsFor] = useState<string | null>(null);
-
-  // A different offering means a different report: go back to page 1 so the
-  // pager can never sit past the end of the (possibly much shorter) new list.
-  useEffect(() => {
-    setPage(1);
-  }, [offeringId]);
 
   const query = qs({
     page,
