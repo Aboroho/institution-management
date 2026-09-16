@@ -15,18 +15,36 @@ async function main() {
     console.log("Created institution:", inst.name);
   }
 
-  // Admin
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@institution.local").toLowerCase();
+  // Admin — the protected seed/system account (identity + credentials come from env).
+  // This script is the ONLY place allowed to mark a user as isSeedAdmin; application
+  // APIs read the flag from the database and refuse to modify or delete that account.
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@institution.local").trim().toLowerCase();
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Admin123!";
   const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const flagged = await prisma.user.findFirst({ where: { isSeedAdmin: true } });
   if (!existing) {
     const passwordHash = await bcrypt.hash(adminPassword, 12);
-    await prisma.user.create({
-      data: { email: adminEmail, name: process.env.SEED_ADMIN_NAME || "System Administrator", role: "ADMIN", passwordHash },
+    const created = await prisma.user.create({
+      data: {
+        email: adminEmail,
+        name: process.env.SEED_ADMIN_NAME || "System Administrator",
+        role: "ADMIN",
+        passwordHash,
+        isSeedAdmin: true,
+      },
     });
-    console.log("Created admin:", adminEmail);
+    console.log("Created seed admin:", created.email);
+  } else if (existing.role !== "ADMIN") {
+    console.warn(`Seed admin email ${adminEmail} exists as role ${existing.role}; refusing to change roles during seeding. Resolve manually.`);
+  } else if (!flagged) {
+    // Upgrade path: an existing admin matching the configured seed email becomes the
+    // protected account (idempotent backfill). Never flags a second account.
+    await prisma.user.update({ where: { id: existing.id }, data: { isSeedAdmin: true } });
+    console.log("Marked existing admin as protected seed admin:", adminEmail);
+  } else if (flagged.id !== existing.id) {
+    console.warn("A protected seed admin already exists; the email configured in SEED_ADMIN_EMAIL was NOT auto-promoted. Reconcile SEED_ADMIN_EMAIL deliberately if the recovery account changed.");
   } else {
-    console.log("Admin already exists:", adminEmail);
+    console.log("Seed admin already exists:", adminEmail);
   }
 
   if (process.env.SEED_DEMO !== "true") {

@@ -91,6 +91,13 @@ model User {
   name         String
   role         Role
   isActive     Boolean  @default(true)
+  // Persistent marker for the protected system account created by prisma/seed.ts
+  // from the SEED_ADMIN_* env configuration. It is ONLY settable by the seed
+  // script — no application API may create, move or remove this flag.
+  isSeedAdmin  Boolean  @default(false)
+  // JWTs carry the version issued at login. It is incremented on every password
+  // change, so all previously issued sessions/tokens are invalidated server-side.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
