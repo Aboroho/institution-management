@@ -14,6 +14,7 @@
 
 import { BookOpen, CalendarDays, Clock, GraduationCap, Layers, Users } from "lucide-react";
 import { Badge } from "@/components/ui";
+import { offeringContextCode } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -29,17 +30,22 @@ export function offeringParts(offering: Row | null | undefined) {
     semester: str((o.semester as Row | undefined)?.name),
     shift: str((o.shift as Row | undefined)?.name),
     section: str((o.section as Row | undefined)?.name),
+    /** The computed display identifier, e.g. "Digital Electronics-EC-2-M-A". */
+    context: str(o.context) || offeringContextCode(o),
+    /** Derived availability (offering flag AND academic year status). */
+    available: o.available !== undefined ? Boolean(o.available) : (o.isActive !== false),
   };
 }
 
-/** Single-line full context, e.g. for dropdown options and table fallbacks. */
+/**
+ * Single-line human-readable identifier for a course offering — the app-wide
+ * `context` code (e.g. "Digital Electronics-EC-2-M-A"). Uses the payload's
+ * `context` field when present and derives it from the related entities
+ * otherwise, so every label in the app follows the same exact format.
+ */
 export function offeringContextLabel(offering: Row | null | undefined) {
   const p = offeringParts(offering);
-  const head = p.courseTitle + (p.courseCode ? ` (${p.courseCode})` : "");
-  const tail = [p.trade, p.semester, p.shift, p.section && `Sec ${p.section}`]
-    .filter(Boolean)
-    .join(" · ");
-  return tail ? `${head} · ${tail}` : head;
+  return p.context || p.courseTitle;
 }
 
 /** Search haystack covering every context dimension. */
@@ -144,6 +150,11 @@ export function CourseOfferingBanner({
               </span>
             )}
           </p>
+          {p.context && (
+            <p className="mt-0.5 font-mono text-xs font-medium text-brand-700" title="Course offering context code">
+              {p.context}
+            </p>
+          )}
           <div className="mt-2">
             <CourseOfferingBadges offering={offering} />
           </div>
@@ -159,8 +170,15 @@ export function CourseOfferingCell({ offering }: { offering: Row | null | undefi
   const p = offeringParts(offering);
   return (
     <span className="block">
-      <span className="block font-medium text-slate-800">{p.courseTitle || "—"}</span>
-      {p.courseCode && <span className="block text-xs text-slate-400">{p.courseCode}</span>}
+      <span className="block font-medium text-slate-800">
+        {p.courseTitle || "—"}
+        {p.courseCode && <span className="ml-1.5 text-xs font-normal text-slate-400">{p.courseCode}</span>}
+      </span>
+      {p.context && (
+        <span className="mt-0.5 block font-mono text-xs text-brand-700" title="Course offering context code">
+          {p.context}
+        </span>
+      )}
       <span className="mt-1 block">
         <CourseOfferingBadges offering={offering} showYear={false} />
       </span>

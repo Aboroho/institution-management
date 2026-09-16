@@ -39,8 +39,8 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET | /promotions/history | ADMIN |
 | GET/POST | /teachers | ADMIN |
 | GET/PATCH | /teachers/{id} | ADMIN |
-| GET/POST | /teacher-assignments | ADMIN |
-| POST | /teacher-assignments/substitute | ADMIN |
+| GET/POST | /teacher-assignments | ADMIN (POST validates offering + academic-year status; exactly one active assignment per offering is DB-enforced via `activeSlot`) |
+| POST | /teacher-assignments/substitute | ADMIN (transactional: closes the current assignment, creates the replacement; rejected for inactive offerings / inactive academic years) |
 | GET/POST | /schedules | scoped / ADMIN |
 | GET | /schedules/history?courseOfferingId= | scoped |
 | GET | /attendance/sessions | scoped teacher+admin (read sessions) |
@@ -87,6 +87,27 @@ course-offering student responses. Promotion and repetition create enrollments s
 take the next free number in the destination section. `DELETE /students/{id}` is restricted to
 admins and permanently removes only an unused student account; records with academic history
 return a conflict so the student can be deactivated instead.
+
+## Course offering `context` code
+
+Every course-offering payload (lists, details, assignment lists) carries two
+derived fields:
+
+- `context` — the human-readable identifier, computed (never stored/entered) as
+  `{course_name}-{trade_code}-{semester_number}-{shift_first_letter}-{section_name}`,
+  e.g. `Digital Electronics-EC-2-M-A`. It is display-only: the CourseOffering
+  database ID remains the generated `id`, and clients must never construct or
+  submit IDs from the context string.
+- `available` — whether the offering accepts new operations, derived as
+  `offering.isActive AND academicYear.isActive`. An offering in a deactivated
+  academic year is treated as inactive/unavailable: new teacher assignments,
+  substitutions and new offerings are rejected (422), while historical records
+  remain fully accessible.
+
+The centralized admin UI for assignment/substitution lives at
+`/admin/teacher-assignment` (Academic Year → Trade → Semester → Shift → Section
+→ Course Offering → Teacher); the legacy `/admin/teacher-assignments` URL
+redirects to it.
 
 ## Status codes
 
