@@ -7,6 +7,7 @@ import {
   LayoutDashboard, GraduationCap, Users, UserCheck, BookOpen, Library, Layers,
   CalendarDays, ClipboardCheck, FileText, Award, Megaphone, Bell, BarChart3,
   ScrollText, Settings, LogOut, Menu, X, ArrowLeftRight, UserPlus, Clock,
+  UserCircle, UserCog,
 } from "lucide-react";
 import { authApi, get } from "@/lib/api/client";
 import { cn } from "@/components/ui";
@@ -38,7 +39,9 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/admin/notifications", label: "Notifications", icon: <Bell size={18} />, group: "Communication" },
   { href: "/admin/reports", label: "Reports", icon: <BarChart3 size={18} />, group: "Insights" },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: <ScrollText size={18} />, group: "Administration" },
+  { href: "/admin/users", label: "Admins", icon: <UserCog size={18} />, group: "Administration" },
   { href: "/admin/settings", label: "Settings", icon: <Settings size={18} />, group: "Administration" },
+  { href: "/admin/profile", label: "Profile", icon: <UserCircle size={18} />, group: "Administration" },
 ];
 
 const TEACHER_NAV: NavItem[] = [
@@ -47,6 +50,7 @@ const TEACHER_NAV: NavItem[] = [
   { href: "/teacher/schedule", label: "Schedule", icon: <CalendarDays size={18} /> },
   { href: "/teacher/notices", label: "Notices", icon: <Megaphone size={18} /> },
   { href: "/teacher/notifications", label: "Notifications", icon: <Bell size={18} /> },
+  { href: "/teacher/profile", label: "Profile", icon: <UserCircle size={18} /> },
 ];
 
 const STUDENT_NAV: NavItem[] = [
@@ -58,6 +62,7 @@ const STUDENT_NAV: NavItem[] = [
   { href: "/student/marks", label: "Marks", icon: <Award size={18} /> },
   { href: "/student/notices", label: "Notices", icon: <Megaphone size={18} /> },
   { href: "/student/notifications", label: "Notifications", icon: <Bell size={18} /> },
+  { href: "/student/profile", label: "Profile", icon: <UserCircle size={18} /> },
 ];
 
 export function AppShell({ role, children }: { role: "ADMIN" | "TEACHER" | "STUDENT"; children: React.ReactNode }) {

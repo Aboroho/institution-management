@@ -53,10 +53,47 @@ export function qs(params: Record<string, string | number | undefined | null>): 
 }
 
 // Resource clients
+export interface MyProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT";
+  isActive: boolean;
+  isSeedAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  student?: { id: string; studentId: string } | null;
+  teacher?: { id: string; employeeId: string } | null;
+}
+
+export interface AdminRow {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN";
+  isActive: boolean;
+  isSeedAdmin: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export const authApi = {
-  me: () => get<{ id: string; email: string; name: string; role: string; student?: { id: string; studentId: string } | null; teacher?: { id: string; employeeId: string } | null }>("/auth/me"),
+  me: () => get<{ id: string; email: string; name: string; role: string; isSeedAdmin?: boolean; student?: { id: string; studentId: string } | null; teacher?: { id: string; employeeId: string } | null }>("/auth/me"),
   login: (email: string, password: string) => post<{ id: string; email: string; name: string; role: string }>("/auth/login", { email, password }),
   logout: () => post("/auth/logout"),
+};
+
+export const accountApi = {
+  profile: () => get<MyProfile>("/users/me"),
+  updateProfile: (body: { name?: string; email?: string }) => patch<MyProfile>("/users/me", body),
+  changePassword: (body: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    post<{ changed: boolean }>("/users/me/change-password", body),
+};
+
+export const adminUsersApi = {
+  list: (params: Record<string, string | number | undefined | null> = {}) => get<AdminRow[]>(`/users${qs({ adminsOnly: "true", ...params })}`),
+  create: (body: { name: string; email: string; password: string }) => post<AdminRow>("/users", body),
+  remove: (id: string) => del<{ id: string; deleted: boolean }>(`/users/${id}`),
 };
 
 export const buildList = (resource: string) => (params: Record<string, string | number | undefined | null> = {}) =>

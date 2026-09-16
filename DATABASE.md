@@ -25,6 +25,18 @@ File, AuditLog.
 
 ## Important constraints
 
+- `User.email` — unique; stored trimmed + lowercased (same normalization as login). Account
+  management preserves `User.id` and all relationships when email/name change; the DB unique
+  index is the authority for email duplicates, surfaced as a friendly 409.
+- `User.isSeedAdmin` — persistent marker of the protected system account; settable ONLY by
+  the seed script from `SEED_ADMIN_*` env. No application write path touches it. Exactly the
+  one seeded account is protected; admins created via the app have `isSeedAdmin=false`.
+- `User.tokenVersion` — incremented on password change to revoke all previously issued JWTs.
+- `User` deletion (admin management) uses `onDelete: Restrict` on every relationship that must
+  survive an account removal (audit actor references detach to null; notifications cascade).
+  Accounts referenced by academic history cannot be deleted (service returns 409), so no
+  foreign-key is ever broken and no history is destroyed.
+
 - `Course.code`, `Student.studentId` (permanent), `Teacher.employeeId` — unique.
 - `StudentEnrollment.rollNumber` is required (no database default): the administrator supplies
   it when enrolling or when creating a student (a student cannot exist without a roll number —
