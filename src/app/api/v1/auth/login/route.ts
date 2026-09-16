@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { verifyPassword } from "@/lib/auth/password";
-import { signSession, sessionCookieName } from "@/lib/auth/token";
+import { setSessionCookie, signSessionForUser } from "@/lib/auth/session";
 import { audit } from "@/lib/audit/audit";
 
 const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
@@ -20,13 +20,10 @@ export async function POST(req: NextRequest) {
     if (!valid) {
       return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Invalid email or password", details: null } }, { status: 401 });
     }
-    const token = await signSession({ sub: user.id, email: user.email, name: user.name, role: user.role });
+    const token = await signSessionForUser(user);
     await audit({ actorUserId: user.id, action: "auth.login", entityType: "User", entityId: user.id });
     const res = NextResponse.json({ data: { id: user.id, email: user.email, name: user.name, role: user.role } });
-    res.cookies.set(sessionCookieName(), token, {
-      httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
-      path: "/", maxAge: 60 * 60 * Number(process.env.AUTH_TOKEN_TTL_HOURS ?? 12),
-    });
+    setSessionCookie(res, token);
     return res;
   } catch (e) {
     if (e instanceof z.ZodError) {
