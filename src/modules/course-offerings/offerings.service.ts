@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { conflict, notFound, businessRule } from "@/lib/errors/errors";
+import { withOfferingContext } from "@/lib/course-offering-context";
 
 export async function listOfferings(opts: {
   academicYearId?: string; tradeId?: string; semesterId?: string; shiftId?: string;
@@ -24,7 +25,7 @@ export async function listOfferings(opts: {
     prisma.courseOffering.findMany({
       where, orderBy: { createdAt: "desc" }, skip: (opts.page - 1) * opts.limit, take: opts.limit,
       include: {
-        academicYear: { select: { id: true, name: true } },
+        academicYear: { select: { id: true, name: true, isActive: true } },
         trade: { select: { id: true, name: true, code: true } },
         semester: { select: { id: true, name: true, number: true } },
         shift: { select: { id: true, name: true, code: true } },
@@ -35,12 +36,19 @@ export async function listOfferings(opts: {
       },
     }),
   ]);
-  return { items, total };
+  // Derived display fields: `context` code + `available` (derives from the
+  // offering's own flag AND its academic year's status).
+  return { items: items.map((o) => withOfferingContext(o)), total };
 }
 
 export async function createOffering(data: {
   academicYearId: string; tradeId: string; semesterId: string; shiftId: string; sectionId: string; courseId: string;
 }) {
+  // An inactive academic year is not an active academic context: no new
+  // offerings may be created inside it.
+  const year = await prisma.academicYear.findUnique({ where: { id: data.academicYearId } });
+  if (!year) throw notFound("Academic year not found");
+  if (!year.isActive) throw businessRule("The academic year is inactive — activate it before creating new course offerings");
   const section = await prisma.section.findUnique({ where: { id: data.sectionId } });
   if (!section) throw notFound("Section not found");
   // Section must match the offering context (no mixing).
@@ -53,11 +61,26 @@ export async function createOffering(data: {
   const course = await prisma.course.findUnique({ where: { id: data.courseId } });
   if (!course) throw notFound("Course not found");
   await assertCourseInActiveCurriculum(data.tradeId, data.semesterId, data.courseId);
+  let created;
   try {
-    return await prisma.courseOffering.create({ data });
+    created = await prisma.courseOffering.create({ data });
   } catch {
     throw conflict("Course offering already exists for this context");
   }
+  // Return with related entities so the response carries the derived
+  // `context` code like every other offering payload.
+  const full = await prisma.courseOffering.findUnique({
+    where: { id: created.id },
+    include: {
+      academicYear: { select: { id: true, name: true, isActive: true } },
+      trade: { select: { id: true, name: true, code: true } },
+      semester: { select: { id: true, name: true, number: true } },
+      shift: { select: { id: true, name: true, code: true } },
+      section: { select: { id: true, name: true } },
+      course: { select: { id: true, code: true, title: true } },
+    },
+  });
+  return full ? withOfferingContext(full) : created;
 }
 
 /**
@@ -105,7 +128,10 @@ export async function getOffering(id: string) {
     include: { student: { include: { user: { select: { name: true, email: true } } } } },
     orderBy: { rollNumber: "asc" },
   });
-  return { ...o, students: enrollments.map((e: any) => ({ ...e.student, rollNumber: e.rollNumber })) };
+  return {
+    ...withOfferingContext(o),
+    students: enrollments.map((e: any) => ({ ...e.student, rollNumber: e.rollNumber })),
+  };
 }
 
 export async function updateOffering(id: string, data: Partial<{ isActive: boolean; courseId: string }>) {
