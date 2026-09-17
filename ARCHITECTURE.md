@@ -35,7 +35,6 @@ Rules:
 | notices | Per-offering announcements (preserved across substitution) |
 | notifications | In-app + async email/SMS. Approval requests notify active admins. **No push notifications.** |
 | reports | Server-side aggregations + dashboards |
-| users | Self-service profile (name/email/password), admin management, server-side seed-admin protection |
 | audit | Immutable audit log |
 
 ## Auth
@@ -43,13 +42,6 @@ Rules:
 - JWT (HS256 via `jose`) in httpOnly `ems_session` cookie.
 - Roles: ADMIN (institution-wide), TEACHER (active-assignment scoped), STUDENT (own data only).
 - `middleware.ts` guards portal routes; API routes enforce authorization again (UI hiding is not security).
-- Tokens carry `tokenVersion`; password changes bump it so old cookies stop working
-  (`getAuth` compares against the DB row). Login and post-change responses re-issue the cookie.
-- Users module (`src/modules/users/`) owns profile self-service (name/email/password) and
-  admin management. The protected seed admin is recognized ONLY by `User.isSeedAdmin`
-  (set by `prisma/seed.ts` from `SEED_ADMIN_*` env) — never by client input, never by role
-  alone — and is immutable/undeletable through the API for every actor, including itself.
-  Admins created in-app are normal admins (identical ADMIN permissions, no protection).
 
 ## Background work
 

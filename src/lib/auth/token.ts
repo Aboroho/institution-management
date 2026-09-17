@@ -6,9 +6,6 @@ export interface SessionPayload {
   email: string;
   name: string;
   role: Role;
-  // User.tokenVersion at issue time. Password changes bump the DB value, which
-  // invalidates every previously issued token (getAuth rejects version mismatches).
-  tokenVersion: number;
 }
 
 const COOKIE_NAME = "ems_session";
@@ -50,18 +47,8 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
       email: String(payload.email),
       name: String(payload.name),
       role: String(payload.role) as Role,
-      // Tokens issued before session-versioning support simply carry no claim.
-      tokenVersion: typeof payload.tokenVersion === "number" ? payload.tokenVersion : 0,
     };
   } catch {
     return null;
   }
-}
-
-/** True when the token was issued for the user's current `tokenVersion`. */
-export function sessionVersionMatches(
-  session: Pick<SessionPayload, "tokenVersion">,
-  user: { tokenVersion: number }
-): boolean {
-  return session.tokenVersion === user.tokenVersion;
 }
