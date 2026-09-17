@@ -7,6 +7,8 @@ import { del, get, patch, ApiError } from "@/lib/api/client";
 import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, StatusBadge, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
 import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { CourseOfferingCell, CourseOfferingBadges } from "@/components/course-offering-context";
+import { StudentAttendanceReportView } from "@/components/reporting/student-attendance-report-view";
+import { StudentSemesterMarksReportView } from "@/components/reporting/student-semester-marks-report-view";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -61,7 +63,15 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
     <div>
       <Breadcrumbs items={[{ label: "Admin", href: "/admin/dashboard" }, { label: "Students", href: "/admin/students" }, { label: str(data.studentId) }]} />
       <PageHeader title={`${str((data.user as Row)?.name)}`} subtitle={`Student ID: ${str(data.studentId)} · ${str((data.user as Row)?.email)}`} actions={<><Link href={`/admin/reports/students/${params.id}`}><Button variant="outline">Full report</Button></Link><Button variant="outline" onClick={openEdit}><Pencil size={14} /> Edit</Button><Button variant="danger" onClick={() => { setDeleteError(""); setDeleteOpen(true); }}><Trash2 size={14} /> Delete</Button></>} />
-      <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "enrollments", label: `Enrollments (${enrollments.length})` }, { id: "attendance", label: "Attendance" }, { id: "marks", label: "Marks" }, { id: "promotions", label: "Promotion history" }]} active={tab} onChange={setTab} />
+      <Tabs tabs={[
+        { id: "overview", label: "Overview" },
+        { id: "enrollments", label: `Enrollments (${enrollments.length})` },
+        { id: "attendance", label: "Attendance" },
+        { id: "attendance-report", label: "Attendance Report" },
+        { id: "marks", label: "Marks" },
+        { id: "semester-marks-report", label: "Semester Marks Report" },
+        { id: "promotions", label: "Promotion history" }
+      ]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -82,6 +92,9 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
           </Table>
         )
       )}
+      {tab === "attendance-report" && (
+        <StudentAttendanceReportView studentId={params.id} />
+      )}
       {tab === "marks" && (
         !grades ? <LoadingSkeleton rows={3} /> : grades.length === 0 ? <p className="text-sm text-slate-500">No grades yet.</p> : (
           <div className="space-y-4">
@@ -99,6 +112,9 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
             })}
           </div>
         )
+      )}
+      {tab === "semester-marks-report" && (
+        <StudentSemesterMarksReportView studentId={params.id} />
       )}
       {tab === "promotions" && (
         <Table headers={["Decision", "From", "To", "Date"]}>

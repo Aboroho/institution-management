@@ -108,6 +108,64 @@ by the API to top-level keys; row-specific inline validation for bulk workflows
 requires a backwards-compatible issue-path API addition. Avoid guessing field
 assignments for business conflicts that have no structured field details.
 
+## Reporting & Export Architecture (2026-09-17)
+
+The reporting system provides attendance and marks reporting with dedicated browser
+pages/tabs, JSON REST APIs, and replaceable XLSX/PDF export engines.
+
+```text
+Database (PostgreSQL + Prisma)
+       ↓ (Explicit field selection, no passwords/hashes/tokens/secrets)
+Report Data Service (src/modules/reporting/reporting.service.ts)
+       ↓
+Normalized Report DTO (src/modules/reporting/reporting.types.ts)
+       ↓
+       ├── Browser Report Views (HTML/CSS Presentation Model)
+       └── Export Engine Interface (src/modules/reporting/exporters/exporter.interface.ts)
+               ├── Browser XLSX Engine (ExcelJS)
+               ├── Browser PDF Engine (jsPDF + jsPDF-AutoTable)
+               ├── Server XLSX Engine (future)
+               └── Server PDF Engine (future)
+```
+
+### 1. Separation of Responsibilities
+- **ReportService**: Receives validated parameters, queries permitted database models using explicit selections, calculates domain summaries and counts, and returns normalized, serializable Report DTOs. It contains no UI code, no React dependencies, and no export/PDF/XLSX code.
+- **Report DTOs**: Explicit, minimal, and frontend-safe data contracts. Sensitive fields (passwords, hashes, tokens, cookies, auth metadata, database connection details) are completely excluded.
+- **Export Engine**: Implements the `ReportExporter<TReport>` interface:
+  ```ts
+  interface ReportExporter<TReport> {
+    readonly format: ExportFormat; // "xlsx" | "pdf"
+    readonly runtime: ExportRuntime; // "browser" | "server"
+    export(report: TReport, options?: Partial<ExportOptions>): Promise<GeneratedReportFile>;
+  }
+  ```
+  Exporters consume only authorized Report DTOs and export options. They do not query the database, access auth/session states, or contain authorization logic.
+
+### 2. Replacing or Adding Server-Side Exporters
+The default export runtime is managed centrally via `DefaultExporterRegistry` (`src/modules/reporting/exporters/exporter.registry.ts`).
+To add or switch to a server-side exporter in the future:
+1. Implement `ReportExporter<TReport>` with `runtime = "server"`.
+2. Register the implementation in `DefaultExporterRegistry.getInstance().register(new ServerXlsxExporter())`.
+3. Set default runtime to `"server"` via `setDefaultExportRuntime("server")`.
+Neither report calculation logic, report DTOs, attendance business rules, marks rules, report UI views, nor backend authorization require modification.
+
+### 3. Security Boundary & Authorization Flow
+All report endpoints enforce server-side authorization before report generation:
+1. Authenticate user session.
+2. Authorize requested report scope:
+   - **Admin**: Authorized for all institution reports.
+   - **Teacher**: Authorized only for assigned course offerings.
+   - **Student**: Authorized strictly for own student ID (preventing IDOR).
+3. Query permitted data with explicit Prisma selects.
+4. Return normalized JSON DTO to the client.
+
+### 4. Adding a New Report Format
+To introduce a new format (e.g. CSV or HTML zip bundle):
+1. Add format to `ExportFormat` union in `exporter.interface.ts`.
+2. Implement `ReportExporter<TReport>` for the format.
+3. Register the exporter in `DefaultExporterRegistry`.
+4. Add an export button in `ReportExportControls`.
+
 Verification: unit suite passes. Full typecheck/build is blocked here by Prisma
 engine downloads failing TLS connection (generated Prisma types unavailable).
 `npm run lint` prompts for initial ESLint configuration; the repository does not

@@ -5,5 +5,5 @@ import { redirect } from "next/navigation";
  * Kept as a redirect so bookmarks and old links don't break.
  */
 export default function TeacherAttendanceReportRedirect({ params }: { params: { id: string } }) {
-  redirect(`/teacher/course-offerings/${params.id}/attendance?tab=report`);
+  redirect(`/teacher/course-offerings/${params.id}?tab=complete-attendance`);
 }

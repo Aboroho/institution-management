@@ -7,6 +7,8 @@ import { BarChart3 } from "lucide-react";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
 import { TeacherAssignmentActions } from "@/components/teacher-assignment";
 import { offeringAvailable } from "@/lib/course-offering-context";
+import { CourseOfferingAttendanceReportView } from "@/components/reporting/course-offering-attendance-report-view";
+import { CourseOfferingAssessmentReportView } from "@/components/reporting/course-offering-assessment-report-view";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -40,7 +42,17 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
         actions={<Button variant="outline" onClick={toggle}>{data.isActive ? "Deactivate" : "Activate"}</Button>}
       />
       <CourseOfferingBanner offering={data} eyebrow="Course offering" />
-      <Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "students", label: `Students (${students.length})` }, { id: "teacher", label: "Teacher" }, { id: "schedule", label: "Schedule" }, { id: "attendance", label: "Attendance" }, { id: "assessments", label: "Assessments" }, { id: "notices", label: "Notices" }]} active={tab} onChange={setTab} />
+      <Tabs tabs={[
+        { id: "overview", label: "Overview" },
+        { id: "students", label: `Students (${students.length})` },
+        { id: "teacher", label: "Teacher" },
+        { id: "schedule", label: "Schedule" },
+        { id: "attendance", label: "Attendance" },
+        { id: "complete-attendance", label: "Complete Attendance Report" },
+        { id: "assessments", label: "Assessments" },
+        { id: "complete-assessment", label: "Complete Assessment Report" },
+        { id: "notices", label: "Notices" }
+      ]} active={tab} onChange={setTab} />
 
       {tab === "overview" && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -124,6 +136,12 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
         <Table headers={["Title", "Type", "Total", "Due"]}>
           {(assessments ?? []).map((a) => <tr key={str(a.id)}><td className="px-4 py-3 font-medium">{str(a.title)}</td><td className="px-4 py-3"><Badge tone="blue">{str(a.type)}</Badge></td><td className="px-4 py-3">{str(a.totalMarks)}</td><td className="px-4 py-3 text-sm">{a.dueDate ? str(a.dueDate).slice(0, 10) : "—"}</td></tr>)}
         </Table>
+      )}
+      {tab === "complete-attendance" && (
+        <CourseOfferingAttendanceReportView courseOfferingId={params.id} />
+      )}
+      {tab === "complete-assessment" && (
+        <CourseOfferingAssessmentReportView courseOfferingId={params.id} />
       )}
       {tab === "notices" && (
         <div className="space-y-2">
