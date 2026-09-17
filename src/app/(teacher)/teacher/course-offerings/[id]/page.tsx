@@ -7,8 +7,10 @@ import {
   Breadcrumbs, Tabs, Badge, StatusBadge, Dialog, Input, Select, Textarea,
   Label, FieldError, Spinner,
 } from "@/components/ui";
-import { Plus, History, ClipboardCheck, BarChart3 } from "lucide-react";
+import { Plus, History, ClipboardCheck, BarChart3, Award } from "lucide-react";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
+import { CourseOfferingAttendanceReportView } from "@/components/reporting/course-offering-attendance-report-view";
+import { CourseOfferingAssessmentReportView } from "@/components/reporting/course-offering-assessment-report-view";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -31,16 +33,22 @@ export default function TeacherOfferingDetail({ params }: { params: { id: string
       <Tabs
         tabs={[
           { id: "overview", label: "Overview" }, { id: "students", label: "Students" },
-          { id: "attendance", label: "Take Attendance" }, { id: "assessments", label: "Assessments" },
-          { id: "marks", label: "Marks" }, { id: "schedule", label: "Schedule" }, { id: "notices", label: "Notices" },
+          { id: "attendance", label: "Take Attendance" },
+          { id: "complete-attendance", label: "Complete Attendance Report" },
+          { id: "assessments", label: "Assessments" },
+          { id: "marks", label: "Marks" },
+          { id: "complete-assessment", label: "Complete Assessment Report" },
+          { id: "schedule", label: "Schedule" }, { id: "notices", label: "Notices" },
         ]}
         active={tab} onChange={setTab}
       />
       {tab === "overview" && <OverviewTab offering={data} />}
       {tab === "students" && <StudentsTab offering={data} />}
       {tab === "attendance" && <AttendanceTab offeringId={params.id} students={(data.students as Row[] | undefined) ?? []} />}
+      {tab === "complete-attendance" && <CourseOfferingAttendanceReportView courseOfferingId={params.id} />}
       {tab === "assessments" && <AssessmentsTab offeringId={params.id} />}
       {tab === "marks" && <MarksTab offeringId={params.id} students={(data.students as Row[] | undefined) ?? []} />}
+      {tab === "complete-assessment" && <CourseOfferingAssessmentReportView courseOfferingId={params.id} />}
       {tab === "schedule" && <ScheduleTab offering={data} />}
       {tab === "notices" && <NoticesTab offeringId={params.id} />}
     </div>

@@ -43,7 +43,7 @@ export const patch = <T,>(path: string, body: unknown) =>
   apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 export const del = <T,>(path: string) => apiFetch<T>(path, { method: "DELETE" });
 
-export function qs(params: Record<string, string | number | undefined | null>): string {
+export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== "") s.set(k, String(v));
