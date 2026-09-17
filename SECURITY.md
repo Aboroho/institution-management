@@ -5,18 +5,6 @@
 - Passwords hashed with bcrypt (cost 12). Strength: min 8 chars.
 - JWT (HS256, `AUTH_SECRET` ≥ 16 chars) in httpOnly, SameSite=Lax cookie; Secure in production.
 - Inactive users cannot authenticate; sessions revalidated against DB on each request.
-- Session revocation with stateless JWTs: tokens carry `tokenVersion`; a password change
-  bumps `User.tokenVersion`, so every older cookie is rejected by `getAuth` (the current
-  device is re-issued a fresh cookie). Deleted/deactivated accounts stop authenticating.
-- Profile self-service (`/users/me*`): the actor id always comes from the verified session,
-  never from the client; mass assignment is blocked by strict Zod schemas (`role`,
-  `isSeedAdmin`, `isActive`, `id`, `passwordHash`, `tokenVersion` are rejected, 422).
-- The protected seed admin (`User.isSeedAdmin`, set only by `prisma/seed.ts`) can change
-  nothing about its account from the application and cannot be deleted, demoted or
-  re-parented — enforced server-side in the users service, including a re-check inside the
-  deletion transaction; denied attempts are audited with no credential material.
-- Admin management (`POST/DELETE /users`) creates only normal ADMIN accounts and refuses
-  deletion of accounts that history references (409), so audit/academic records survive.
 
 ## Authorization (backend authoritative)
 
