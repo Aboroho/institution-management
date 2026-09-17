@@ -21,7 +21,6 @@ import {
 } from "@/components/ui";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { get, post, ApiError } from "@/lib/api/client";
-import { TEACHER_DIRECT_CORRECTIONS } from "@/modules/attendance/attendance.types";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -284,9 +283,7 @@ export function AttendanceTakeForm({
           {students.map((s) => {
             const sid = str(s.id);
             const ex = existingByStudent.get(sid);
-            const left = ex
-              ? Math.max(0, TEACHER_DIRECT_CORRECTIONS - Number(ex.directCorrections ?? 0))
-              : TEACHER_DIRECT_CORRECTIONS;
+            const left = ex ? Math.max(0, 2 - Number(ex.directCorrections ?? 0)) : 2;
             const reachedLimit = Boolean(ex) && left === 0;
             return (
               <tr key={sid} className="hover:bg-slate-50">

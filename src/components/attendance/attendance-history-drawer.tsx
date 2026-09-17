@@ -56,7 +56,7 @@ export function AttendanceHistoryDrawer({
               <span className="text-slate-600">{data.session.attendanceDate}</span>
             </div>
             <div className="mt-2">
-              <CourseOfferingBadges offering={data.session.courseOffering} />
+              <CourseOfferingBadges offering={data.session.courseOffering as unknown as Record<string, unknown>} />
             </div>
           </div>
 

@@ -6,7 +6,7 @@
  * a date-range filter and History/Edit actions per row.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
@@ -23,6 +23,13 @@ import type { AttendanceReportItem } from "@/modules/attendance/attendance.types
 type Row = Record<string, unknown>;
 
 const DEFAULT_PAGE_SIZE = 20;
+
+type SessionRow = {
+  id: string;
+  attendanceDate: string;
+  summary: AttendanceReportItem["summary"];
+  updateCount: number;
+};
 
 function pluralUpdates(n: number) {
   return `Updated: ${n} ${n === 1 ? "time" : "times"}`;
@@ -62,12 +69,6 @@ export function AttendanceReportList({
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [studentsFor, setStudentsFor] = useState<string | null>(null);
 
-  // Switching course offering (admin dependent filters) must not keep a page
-  // number that the new offering's session list may not have.
-  useEffect(() => {
-    setPage(1);
-  }, [offeringId]);
-
   const query = qs({
     page,
     pageSize,
@@ -77,13 +78,13 @@ export function AttendanceReportList({
 
   const { data, error, isLoading, mutate } = useSWR(
     `att-report-${offeringId}-${query}`,
-    () => get<AttendanceReportItem[]>(`/course-offerings/${offeringId}/attendance/sessions${query}`),
+    () => get<SessionRow[]>(`/course-offerings/${offeringId}/attendance/sessions${query}`),
     { keepPreviousData: true },
   );
 
   // Keep the full response: `data` is the session page and `meta.total` drives
   // pagination. (Stripping meta here used to pin the pager at "0 records".)
-  const items = data?.data ?? [];
+  const items = (data?.data ?? []) as SessionRow[];
   const total = Number(data?.meta?.total ?? 0);
   const hasDateFilter = Boolean(appliedFrom || appliedTo);
 
@@ -98,7 +99,7 @@ export function AttendanceReportList({
     setPage(1);
   }
 
-  function openEdit(item: AttendanceReportItem) {
+  function openEdit(item: SessionRow) {
     if (!editBasePath) return;
     router.push(`${editBasePath}?date=${encodeURIComponent(item.attendanceDate)}`);
   }
@@ -208,7 +209,7 @@ export function AttendanceReportList({
         </div>
       )}
 
-      {total > 0 && (
+      {items.length > 0 && (
         <Pagination
           page={page}
           limit={pageSize}

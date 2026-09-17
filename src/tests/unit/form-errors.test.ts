@@ -61,7 +61,7 @@ describe("shared form UX", () => {
     expect(validateFields([], {})).toEqual({});
   });
   it("renders accessible labels, invalid inputs, and error announcements", () => {
-    expect(renderToStaticMarkup(createElement(Label, { htmlFor: "email" }, "Email"))).toContain('for="email"');
+    expect(renderToStaticMarkup(createElement(Label, { htmlFor: "email", children: "Email" }))).toContain('for="email"');
     expect(renderToStaticMarkup(createElement(Input, { id: "email", "aria-invalid": true, "aria-describedby": "email-error" }))).toContain('aria-describedby="email-error"');
     const error = renderToStaticMarkup(createElement(FieldError, { id: "email-error", error: "Enter a valid email." }));
     expect(error).toContain('id="email-error"');

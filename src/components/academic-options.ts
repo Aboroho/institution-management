@@ -2,7 +2,6 @@
 // Real-API option loaders for dependent selects/filters.
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { offeringContextCode } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -13,7 +12,7 @@ export function useAcademicYears() {
   const { data } = useSWR("opt-years", () => get<Row[]>("/academic-years?limit=100").then((r) => r.data));
   return (data ?? []).map((r) => {
     const label = str(r.name);
-    return { value: str(r.id), label, search: label.toLowerCase(), isActive: Boolean(r.isActive) };
+    return { value: str(r.id), label, search: label.toLowerCase() };
   });
 }
 export function useTrades() {
@@ -79,9 +78,8 @@ export function useActiveCurriculum(tradeId?: string, semesterId?: string) {
   });
   return { curriculum, courseOptions, loading: ready && isLoading };
 }
-export function useTeachers(activeOnly = false) {
-  const key = activeOnly ? "opt-teachers-active" : "opt-teachers";
-  const { data } = useSWR(key, () => get<Row[]>(activeOnly ? "/teachers?limit=200&isActive=true" : "/teachers?limit=200").then((r) => r.data));
+export function useTeachers() {
+  const { data } = useSWR("opt-teachers", () => get<Row[]>("/teachers?limit=200").then((r) => r.data));
   return (data ?? []).map((r) => {
     const name = str((r.user as Row)?.name);
     const label = `${name} (${str(r.employeeId)})`;
@@ -91,18 +89,17 @@ export function useTeachers(activeOnly = false) {
 export function useOfferings(params = "") {
   const { data } = useSWR(`opt-off-${params}`, () => get<Row[]>(`/course-offerings?limit=100${params}`).then((r) => r.data));
   return (data ?? []).map((r) => {
-    // Every offering option shows the course name alongside its human-readable
-    // `context` code (e.g. "Digital Electronics — Digital Electronics-EC-2-M-A")
-    // so staff pick the right course. The option VALUE is always the real
-    // database ID — never the context string.
-    const title = str((r.course as Row)?.title);
-    const context = str(r.context) || offeringContextCode(r);
-    const label = context ? `${title} — ${context}` : title;
+    // Full context in every offering option so staff pick the right course:
+    // Course (CODE) · Trade · Semester · Shift · Sec X
+    const label =
+      `${str((r.course as Row)?.title)} (${str((r.course as Row)?.code)}) · ` +
+      `${str((r.trade as Row)?.name)} · ${str((r.semester as Row)?.name)} · ` +
+      `${str((r.shift as Row)?.name)} · Sec ${str((r.section as Row)?.name)}`;
     return {
       value: str(r.id),
       label,
       search: [
-        title, str((r.course as Row)?.code), context,
+        str((r.course as Row)?.title), str((r.course as Row)?.code),
         str((r.trade as Row)?.name), str((r.trade as Row)?.code),
         str((r.semester as Row)?.name), str((r.shift as Row)?.name),
         str((r.section as Row)?.name), str((r.academicYear as Row)?.name),
