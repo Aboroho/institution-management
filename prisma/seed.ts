@@ -5,7 +5,19 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// Log WHERE we are seeding (host/database only — never credentials) so a wrong
+// DATABASE_URL is obvious instead of looking like "seed did nothing".
+function targetLabel() {
+  try {
+    const u = new URL(process.env.DATABASE_URL || "");
+    return `${u.hostname}${u.pathname}`;
+  } catch {
+    return "(DATABASE_URL missing or unparseable)";
+  }
+}
+
 async function main() {
+  console.log("Seeding database:", targetLabel());
   // Institution
   let inst = await prisma.institution.findFirst();
   if (!inst) {
@@ -119,4 +131,9 @@ async function main() {
   console.log("Demo academic data seeded.");
 }
 
-main().finally(() => prisma.$disconnect());
+main()
+  .catch((e) => {
+    console.error("Seed failed:", e);
+    process.exitCode = 1;
+  })
+  .finally(() => prisma.$disconnect());
