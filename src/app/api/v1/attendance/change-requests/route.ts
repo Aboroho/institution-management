@@ -9,13 +9,24 @@ import { prisma } from "@/lib/db/prisma";
 import { notifyAdmins } from "@/lib/notifications/notify";
 import { audit } from "@/lib/audit/audit";
 
+const listSchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+  courseOfferingId: z.string().min(1).optional(),
+});
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth();
     requireAdmin(auth);
     const s = req.nextUrl.searchParams;
     const { page, limit } = parsePagination(s);
-    const { items, total } = await listChangeRequests({ status: s.get("status") || undefined, courseOfferingId: s.get("courseOfferingId") || undefined, page, limit });
+    // Validate the filter here so the service only ever receives real enum
+    // values (no unchecked string → enum coercion downstream).
+    const filters = listSchema.parse({
+      status: s.get("status") || undefined,
+      courseOfferingId: s.get("courseOfferingId") || undefined,
+    });
+    const { items, total } = await listChangeRequests({ ...filters, page, limit });
     return paginated(items, page, limit, total);
   } catch (e) { return fail(e); }
 }
