@@ -72,11 +72,34 @@ npm run db:deploy
 npm run db:seed            # admin + institution (+ demo data with SEED_DEMO=true)
 ```
 
-For a brand-new database, apply the repository's baseline schema first (the repository
-currently predates a committed initial migration), then run `npm run db:deploy`. Existing
-installations should back up the database and apply
-`20260914220000_add_roll_number_to_student_enrollments` followed by
-`20260915090000_require_admin_supplied_roll_number` with Prisma migrate.
+The baseline migration `20260914000000_init` creates the full schema, so a brand-new
+database is built with `npm run db:deploy` alone (6 migrations, applied in timestamp
+order). The chain was replay-tested from an empty database and converges exactly on
+`prisma/schema.prisma`.
+
+For an existing database, back it up first, then inspect before changing anything:
+
+```bash
+npx prisma migrate status   # which migrations are recorded in _prisma_migrations?
+```
+
+* If `status` shows these migrations as pending and the tables were created from this
+  schema (e.g. via `prisma db push` from an older revision), apply them with
+  `npm run db:deploy` — the roll-number and `updateCount` migrations backfill existing
+  rows before enforcing `NOT NULL`/uniqueness.
+* If the database was created with `prisma db push` from the *current* schema (so the
+  `_prisma_migrations` table is empty but every table/column already exists), do NOT
+  `deploy` blindly: verify the schema matches, then baseline each migration with
+  `prisma migrate resolve --applied "<migration_name>"` (all six, in order) so future
+  `deploy` runs only apply new migrations. Never mark a migration applied unless its
+  changes are already present.
+* Never run `prisma migrate reset` on a database holding data you must keep, and never
+  hand-edit `_prisma_migrations` rows.
+
+On Neon (or any pooled Postgres), run all `prisma migrate` commands against the
+**direct, unpooled** connection string: pooled connections cannot reliably hold the
+advisory lock / transaction semantics migrations require. The runtime app may keep
+using the pooled URL; only migration commands need the direct one.
 
 `20260915000000_attendance_report_indexes` added a nullable `AttendanceChangeLog.attendanceSessionId`
 column and `20260915120000_drop_attendance_change_log_session_id` drops it again (both use
