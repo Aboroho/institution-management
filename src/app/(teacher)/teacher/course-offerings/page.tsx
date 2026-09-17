@@ -22,9 +22,7 @@ export default function TeacherOfferings() {
             <Link key={str(o.id)} href={`/teacher/course-offerings/${o.id}`}>
               <Card className="p-5 transition hover:shadow-md">
                 <p className="font-bold">{str((o.course as Row)?.title)}</p>
-                {str(o.context) && (
-                  <p className="mt-0.5 font-mono text-xs text-brand-700" title="Course offering context code">{str(o.context)}</p>
-                )}
+                <p className="text-sm text-slate-500">{str((o.course as Row)?.code)}</p>
                 <div className="mt-2">
                   <CourseOfferingBadges offering={o} />
                 </div>

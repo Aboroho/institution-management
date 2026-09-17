@@ -1,32 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { conflict, notFound, businessRule } from "@/lib/errors/errors";
 import { hashPassword } from "@/lib/auth/password";
-import { withOfferingContext } from "@/lib/course-offering-context";
-
-type OfferingForAssignment = {
-  id: string;
-  isActive: boolean;
-  academicYear: { isActive: boolean };
-};
-
-/**
- * Backend guard for assignment operations:
- *  - the offering must exist and be active;
- *  - its Academic Year must be active. An offering in an inactive year is
- *    "inactive/unavailable" by derivation (see offeringAvailable) and must not
- *    accept new assignments or substitutions, even if its own flag is true.
- * Historical data on such offerings stays accessible — this only blocks NEW operations.
- */
-export function assertOfferingAssignable(offering: OfferingForAssignment) {
-  if (!offering.isActive) {
-    throw businessRule("Course offering is inactive — activate it before assigning a teacher");
-  }
-  if (!offering.academicYear.isActive) {
-    throw businessRule(
-      "The academic year is inactive — new teacher assignments and substitutions are not available for this course offering"
-    );
-  }
-}
 
 export async function listTeachers(opts: { search?: string; isActive?: boolean; page: number; limit: number }) {
   const where: Record<string, unknown> = {};
@@ -132,21 +106,15 @@ export async function listAssignments(opts: {
       },
     }),
   ]);
-  // Expose the derived `context` code + `available` flag on every offering
-  // referenced by an assignment (centralized list + dialogs).
-  return { items: items.map((a) => ({ ...a, courseOffering: withOfferingContext(a.courseOffering) })), total };
+  return { items, total };
 }
 
 export async function assignTeacher(data: { courseOfferingId: string; teacherId: string; assignedById?: string; reason?: string }) {
   const [offering, teacher] = await Promise.all([
-    prisma.courseOffering.findUnique({
-      where: { id: data.courseOfferingId },
-      include: { academicYear: { select: { isActive: true } } },
-    }),
+    prisma.courseOffering.findUnique({ where: { id: data.courseOfferingId } }),
     prisma.teacher.findUnique({ where: { id: data.teacherId } }),
   ]);
   if (!offering) throw notFound("Course offering not found");
-  assertOfferingAssignable(offering);
   if (!teacher || !teacher.isActive) throw notFound("Teacher not found or inactive");
   const current = await prisma.teacherCourseAssignment.findFirst({
     where: { courseOfferingId: data.courseOfferingId, isActive: true },
@@ -174,12 +142,8 @@ export async function substituteTeacher(data: {
 }) {
   const teacher = await prisma.teacher.findUnique({ where: { id: data.newTeacherId } });
   if (!teacher || !teacher.isActive) throw notFound("Replacement teacher not found or inactive");
-  const offering = await prisma.courseOffering.findUnique({
-    where: { id: data.courseOfferingId },
-    include: { academicYear: { select: { isActive: true } } },
-  });
+  const offering = await prisma.courseOffering.findUnique({ where: { id: data.courseOfferingId } });
   if (!offering) throw notFound("Course offering not found");
-  assertOfferingAssignable(offering);
 
   return prisma.$transaction(async (tx: any) => {
     const current = await tx.teacherCourseAssignment.findFirst({

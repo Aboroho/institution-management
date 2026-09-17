@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db/prisma";
-import type { Prisma } from "@prisma/client";
 import { computeFinalGrade, type GradableAssessment } from "@/modules/marks/grading.service";
 
 // Server-side aggregation — never ship huge datasets to the browser.
@@ -7,16 +6,16 @@ export async function attendanceReport(opts: {
   academicYearId?: string; tradeId?: string; semesterId?: string; shiftId?: string;
   sectionId?: string; courseOfferingId?: string; from?: Date; to?: Date;
 }) {
-  const offeringWhere: Prisma.CourseOfferingWhereInput = {};
+  const offeringWhere: Record<string, unknown> = {};
   for (const k of ["academicYearId", "tradeId", "semesterId", "shiftId", "sectionId"] as const) {
     if (opts[k]) offeringWhere[k] = opts[k];
   }
   if (opts.courseOfferingId) offeringWhere.id = opts.courseOfferingId;
   const offerings = await prisma.courseOffering.findMany({ where: offeringWhere, select: { id: true } });
-  const ids = offerings.map((o) => o.id);
+  const ids = offerings.map((o: any) => o.id);
   if (!ids.length) return [];
 
-  const sessionWhere: Prisma.AttendanceSessionWhereInput = { courseOfferingId: { in: ids } };
+  const sessionWhere: Record<string, unknown> = { courseOfferingId: { in: ids } };
   if (opts.from || opts.to) {
     sessionWhere.attendanceDate = {
       ...(opts.from ? { gte: opts.from } : {}),
@@ -45,10 +44,10 @@ export async function attendanceReport(opts: {
       else a.excused += 1;
     }
   }
-  return [...agg.values()].map((a) => ({
+  return [...agg.values()].map((a: any) => ({
     ...a,
     percentage: a.total ? Math.round(((a.present + a.late * 0.5 + a.excused * 0.5) / a.total) * 1000) / 10 : 0,
-  })).sort((a, b) => a.studentCode.localeCompare(b.studentCode));
+  })).sort((a: any, b: any) => a.studentCode.localeCompare(b.studentCode));
 }
 
 export async function marksReport(opts: {

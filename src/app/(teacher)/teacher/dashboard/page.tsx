@@ -5,7 +5,6 @@ import { BookOpen, CalendarDays, FileText, Megaphone } from "lucide-react";
 import { get, authApi } from "@/lib/api/client";
 import { PageHeader, StatCard, Card, LoadingSkeleton, ErrorState, Badge } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
-import { offeringContextCode } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -35,11 +34,6 @@ export default function TeacherDashboard() {
               {assignments.map((a) => (
                 <Link key={str(a.id)} href={`/teacher/course-offerings/${(a.courseOffering as Row)?.id}`} className="block rounded-lg bg-slate-50 p-3 hover:bg-slate-100">
                   <p className="font-medium">{str(((a.courseOffering as Row)?.course as Row)?.title)}</p>
-                  {offeringContextCode(a.courseOffering as Row) && (
-                    <p className="mt-0.5 font-mono text-xs text-brand-700" title="Course offering context code">
-                      {offeringContextCode(a.courseOffering as Row)}
-                    </p>
-                  )}
                   <div className="mt-1.5">
                     <CourseOfferingBadges offering={a.courseOffering as Row} />
                   </div>

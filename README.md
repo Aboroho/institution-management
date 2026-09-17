@@ -591,13 +591,8 @@ Teacher may edit attendance only for CourseOfferings they currently teach.
 Normal teacher edit window:
 - attendance not more than one week old
 
-Admin (product decision 2026-09-15 — overrides the earlier "may edit indefinitely"):
-- READ-ONLY for attendance: admins never take attendance and never edit
-  AttendanceRecord directly (POST /api/v1/attendance/sessions returns 403 for admins)
-- admins may view attendance sessions, per-session student statuses and the
-  immutable change history
-- admins may approve or reject teacher change requests; approval is the ONLY
-  mechanism through which an admin can cause an attendance change
+Admin:
+- may edit indefinitely
 
 Correction:
 - mandatory reason
@@ -637,36 +632,6 @@ Approval transaction:
 - create change log
 - update request
 - create audit log
-
-------------------------------------------------------------
-Admin attendance report (UI)
-------------------------------------------------------------
-
-Primary entry point: /admin/attendance
-
-Dependent filters (all options loaded from the backend, never hardcoded and
-never constructed client-side):
-
-  Academic Year -> Trade -> Semester -> Shift -> Section -> Course Offering
-
-Semester is scoped to the selected Trade; a Section is identified by
-academicYear + trade + semester + shift; Course Offerings are listed for the
-selected section and context. Changing a parent clears every dependent
-selection so a stale academic context can never be submitted.
-
-After a Course Offering is chosen the page lists its AttendanceSessions:
-
-- sorted by attendance date (server-side), paginated, date-range filterable
-- each row shows date + weekday, Present/Absent/Late/Excused counts and the
-  session's "Updated: N times" counter (one edit operation = one update;
-  initial creation is not an update)
-- actions: Student Status (complete section roster with a frontend Roll filter)
-  and History (every change-log entry for that session, immutable)
-
-Admin UI has no take/edit controls; the per-offering report at
-/admin/course-offerings/{id}/attendance?tab=report remains available as a
-read-only deep link. Teacher attendance (Take Attendance + Attendance Report)
-lives under /teacher/course-offerings/{id}/attendance.
 
 ============================================================
 11. ASSESSMENTS

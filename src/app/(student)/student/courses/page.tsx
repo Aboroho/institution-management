@@ -2,7 +2,6 @@
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { PageHeader, Card, LoadingSkeleton, ErrorState, Breadcrumbs, EmptyState } from "@/components/ui";
-import { offeringContextCode } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -25,9 +24,6 @@ export default function StudentCourses() {
             <Card key={str((g.offering as Row)?.id)} className="p-5">
               <p className="font-bold">{str(((g.offering as Row)?.course as Row)?.title)}</p>
               <p className="text-sm text-slate-500">Section {str(((g.offering as Row)?.section as Row)?.name)}</p>
-              {offeringContextCode(g.offering as Row) && (
-                <p className="mt-1 font-mono text-xs text-brand-700" title="Course offering context code">{offeringContextCode(g.offering as Row)}</p>
-              )}
               <p className="mt-2 text-sm">{((g.assessments as Row[]) ?? []).length} assessments · Final: <strong>{str((g.final as Row)?.percentage)}% ({str((g.final as Row)?.grade)})</strong></p>
             </Card>
           ))}

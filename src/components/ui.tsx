@@ -97,13 +97,7 @@ export function SearchableSelect({
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const reqId = useRef(0);
 
-  // Memoised so the option list keeps a stable identity across renders (the
-  // `filtered` memo below depends on it) — dependent selects pass a fresh
-  // `options` array only when the backend data actually changed.
-  const list = useMemo(
-    () => (loadOptions ? (remote ?? []) : (options ?? [])),
-    [loadOptions, remote, options],
-  );
+  const list = loadOptions ? (remote ?? []) : (options ?? []);
   const q = query.trim().toLowerCase();
   const filtered = useMemo(
     () => (loadOptions ? list : list.filter((o) => !q || (o.search ?? o.label.toLowerCase()).includes(q))),
@@ -285,7 +279,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
 );
 Textarea.displayName = "Textarea";
 
-export function Label({ children, required, htmlFor }: { children?: React.ReactNode; required?: boolean; htmlFor?: string }) {
+export function Label({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
   return <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-slate-700">{children}{required && <span className="ml-1 text-red-500">*</span>}</label>;
 }
 

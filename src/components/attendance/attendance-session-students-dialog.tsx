@@ -14,12 +14,35 @@ import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, La
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import { filterByRoll } from "@/modules/attendance/attendance.permissions";
-import {
-  TEACHER_DIRECT_CORRECTIONS,
-  type AttendanceSessionRosterPayload,
-} from "@/modules/attendance/attendance.types";
 
+type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
+
+type RecordsPayload = {
+  session: {
+    id: string;
+    attendanceDate: string;
+    courseOffering: {
+      course: { title: string; code: string };
+      section: { name: string };
+      semester?: { name: string };
+      trade?: { name: string; code: string };
+      shift?: { name: string };
+      academicYear?: { name: string };
+    };
+  };
+  records: {
+    id: string | null;
+    rollNumber: number | null;
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    status: string;
+    hasRecord: boolean;
+    note: string | null;
+    directCorrections: number;
+  }[];
+};
 
 export function AttendanceSessionStudentsDialog({
   sessionId,
@@ -33,7 +56,7 @@ export function AttendanceSessionStudentsDialog({
   const key = sessionId ? `att-records-${sessionId}` : null;
   const { data, error, isLoading } = useSWR(
     key,
-    () => get<AttendanceSessionRosterPayload>(`/attendance/sessions/${sessionId}/records`).then((r) => r.data),
+    () => get<RecordsPayload>(`/attendance/sessions/${sessionId}/records`).then((r) => r.data),
   );
   const [rollQuery, setRollQuery] = useState("");
 
@@ -64,7 +87,7 @@ export function AttendanceSessionStudentsDialog({
               <span className="text-slate-600">{data.session.attendanceDate}</span>
             </div>
             <div className="mt-2">
-              <CourseOfferingBadges offering={data.session.courseOffering} />
+              <CourseOfferingBadges offering={data.session.courseOffering as unknown as Record<string, unknown>} />
             </div>
           </div>
 
@@ -111,7 +134,7 @@ export function AttendanceSessionStudentsDialog({
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-sm">{r.directCorrections}/{TEACHER_DIRECT_CORRECTIONS} used</td>
+                    <td className="px-4 py-2 text-sm">{r.directCorrections}/2 used</td>
                   </tr>
                 ))}
               </Table>

@@ -5,7 +5,6 @@ import { requireActiveTeacherAssignment } from "@/lib/permissions/permissions";
 import { ok, fail } from "@/lib/api/response";
 import { prisma } from "@/lib/db/prisma";
 import { notFound } from "@/lib/errors/errors";
-import { attendanceOfferingContextSelect, dateOnlyISO } from "@/modules/attendance/attendance.service";
 
 /**
  * GET /api/v1/attendance/sessions/{sessionId}/records
@@ -27,11 +26,19 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
     const session = await prisma.attendanceSession.findUnique({
       where: { id: params.sessionId },
       include: {
-        // Shared select: the offering context foreign keys (academicYearId,
-        // tradeId, semesterId, shiftId, sectionId) are REQUIRED to look up the
-        // section's ACTIVE enrollments below, so they are always selected
-        // together with the display relations.
-        courseOffering: { select: attendanceOfferingContextSelect },
+        courseOffering: {
+          select: {
+            id: true,
+            // Foreign keys are needed to look up the section's ACTIVE enrollments below.
+            academicYearId: true, tradeId: true, semesterId: true, shiftId: true, sectionId: true,
+            course: { select: { title: true, code: true } },
+            section: { select: { name: true } },
+            semester: { select: { name: true } },
+            trade: { select: { name: true, code: true } },
+            shift: { select: { name: true } },
+            academicYear: { select: { name: true } },
+          },
+        },
         records: {
           include: {
             student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
@@ -65,16 +72,20 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
       orderBy: { rollNumber: "asc" },
     });
 
-    const recordByStudent = new Map(session.records.map((r) => [r.student.id, r] as const));
+    const recordByStudent = new Map(
+      session.records.map((r: { student: { id: string } }) => [r.student.id, r] as const),
+    );
 
     return ok({
       session: {
         id: session.id,
-        attendanceDate: dateOnlyISO(session.attendanceDate),
+        attendanceDate: session.attendanceDate.toISOString().slice(0, 10),
         courseOffering: session.courseOffering,
       },
-      records: enrollments.map((e) => {
-        const r = recordByStudent.get(e.student.id);
+      records: enrollments.map((e: { rollNumber: number; student: { id: string; studentId: string; user: { name: string; email: string } } }) => {
+        const r = recordByStudent.get(e.student.id) as
+          | { id: string; status: string; note: string | null; directCorrections: number }
+          | undefined;
         return {
           id: r?.id ?? null,
           rollNumber: e.rollNumber,
