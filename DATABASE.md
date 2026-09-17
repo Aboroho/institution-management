@@ -110,3 +110,35 @@ writes the new field, otherwise Prisma rejects the query client-side with
 `Unknown argument ...`. `npm run build` and `npm run dev` both regenerate it (`predev`);
 run `npm run prisma:generate` by hand after editing `prisma/schema.prisma` in a long-lived
 shell.
+
+## Client generation & engine (never use `--no-engine` here)
+
+This project connects to PostgreSQL directly, so the generated client must ship the real
+query engine: `prisma generate` (no flags). `npm run prisma:generate` wraps it in
+`scripts/prisma-generate.mjs`, which fails the build if the generated client would not be
+able to reach PostgreSQL.
+
+The trap that must not be reintroduced: `prisma generate --no-engine` (or
+`PRISMA_GENERATE_NO_ENGINE=1`, `PRISMA_GENERATE_DATAPROXY=1`, `PRISMA_GENERATE_ACCELERATE=1`)
+writes `"copyEngine": false` into `node_modules/.prisma/client/index.js`. Prisma 5 derives
+the engine from that flag (`useDataProxy = isPrismaUrl || !copyEngine`) and therefore uses
+its Accelerate/data-proxy engine, which only accepts a `prisma://` URL. The symptom is a
+production-only failure on the first query — including the login/session lookup
+(`prisma.user.findUnique` in `src/lib/auth/session.ts`):
+
+```
+Error validating datasource `db`: the URL must start with the protocol `prisma://`
+```
+
+Local `npm run dev` hides the problem because `predev` runs a plain `prisma generate`,
+which overwrites the broken client. Nothing in this repository needs `--no-engine`, and no
+build step may patch files inside `node_modules` to skip engine downloads: the runtime
+needs `node_modules/.prisma/client/libquery_engine-<target>.so.node`, downloaded from
+`https://binaries.prisma.sh` during generation (`@prisma/engines` uses the same host during
+`npm install`). If a build host cannot reach it, point `PRISMA_ENGINES_MIRROR` at a mirror or
+provide the binary via `PRISMA_QUERY_ENGINE_LIBRARY`, rather than generating without an
+engine.
+
+`postinstall` regenerates the client (best effort: it is skipped when devDependencies, and
+therefore the Prisma CLI, are not installed). `npm run build` regenerates it strictly and
+verifies it, so a production build always ships an engine-backed client.
