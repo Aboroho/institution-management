@@ -5,6 +5,33 @@ prefer archive/deactivate/close/version over destructive deletion; cascades are 
 except where the child cannot exist without the parent (e.g. schedule items, submission's
 session records).
 
+## Migrations
+
+Every schema change ships as a SQL migration under `prisma/migrations/`. **After pulling new
+code, apply pending migrations before starting the app** — otherwise the running code queries
+columns/tables the database does not have yet and API calls fail with
+`The column 'X.y' does not exist in the current database`:
+
+```bash
+npx prisma migrate dev      # local development (may prompt, can create new migrations)
+npx prisma migrate deploy   # staging / production (applies only, never prompts)
+npx prisma migrate status   # check whether the database is behind
+```
+
+`npm run dev` performs this check automatically (`predev` →
+`scripts/db-migration-check.mjs`): if the schema is out of sync the dev server refuses to
+start and prints the remediation command instead of failing later with 500s per request.
+
+Fresh local environment:
+
+```bash
+docker compose up -d db     # PostgreSQL 16 on localhost:5432 (see .env.example)
+npm install                 # also generates the Prisma Client
+npx prisma migrate deploy   # or: npm run db:deploy
+npm run db:seed             # optional demo data requires SEED_DEMO=true
+npm run dev
+```
+
 ## Core relationship chain
 
 ```
