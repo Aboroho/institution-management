@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverActions: { bodySizeLimit: "55mb" },
+    serverActions: { bodySizeLimit: "110mb" },
   },
   async headers() {
     return [

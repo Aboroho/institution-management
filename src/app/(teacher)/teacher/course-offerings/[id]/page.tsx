@@ -9,6 +9,7 @@ import {
 } from "@/components/ui";
 import { Plus, History, ClipboardCheck, BarChart3, Award } from "lucide-react";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
+import { NoticeComposer } from "@/components/notices/notice-composer";
 import { CourseOfferingAttendanceReportView } from "@/components/reporting/course-offering-attendance-report-view";
 import { CourseOfferingAssessmentReportView } from "@/components/reporting/course-offering-assessment-report-view";
 
@@ -337,50 +338,33 @@ function ScheduleTab({ offering }: { offering: Row }) {
 }
 
 function NoticesTab({ offeringId }: { offeringId: string }) {
-  const [dialog, setDialog] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
-  const { data, error, isLoading, mutate } = useSWR(`t-not-${offeringId}`, () => get<Row[]>(`/notices?courseOfferingId=${offeringId}&limit=50`).then((r) => r.data));
+  const [composerOpen, setComposerOpen] = useState(false);
+  const { data, error, isLoading, mutate } = useSWR(`t-not-${offeringId}`, () => get<Row[]>(`/notices?courseOfferingId=${offeringId}&limit=50`).then((response) => response.data));
   const items = data ?? [];
-
-  async function save() {
-    setSaving(true); setFormError("");
-    try {
-      await post("/notices", { courseOfferingId: offeringId, title: form.title, content: form.content, expiresAt: form.expiresAt || null });
-      setDialog(false); setForm({}); await mutate();
-    } catch (e) { setFormError(e instanceof ApiError ? e.message : "Save failed"); }
-    finally { setSaving(false); }
-  }
 
   return (
     <div>
-      <div className="mb-4 flex justify-end"><Button onClick={() => setDialog(true)}><Plus size={16} /> New notice</Button></div>
+      <div className="mb-4 flex justify-end"><Button onClick={() => setComposerOpen(true)}><Plus size={16} /> New notice</Button></div>
       {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load" onRetry={() => mutate()} /> : items.length === 0 ? (
-        <EmptyState title="No notices" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New notice</Button>} />
+        <EmptyState title="No notices" action={<Button onClick={() => setComposerOpen(true)}><Plus size={16} /> New notice</Button>} />
       ) : (
         <div className="space-y-2">
-          {items.map((n) => (
-            <Card key={str(n.id)} className="p-4">
-              <p className="font-semibold">{str(n.title)}</p>
-              <p className="mt-1 text-sm text-slate-600">{str(n.content)}</p>
-              <p className="mt-1 text-xs text-slate-400">{str(n.publishedAt).slice(0, 10)} · by {str(((n.teacher as Row)?.user as Row)?.name)}</p>
+          {items.map((notice) => (
+            <Card key={str(notice.id)} className="p-4">
+              <a href={`/teacher/notices/${str(notice.id)}`} className="font-semibold text-slate-900 hover:text-brand-700 hover:underline">{str(notice.title)}</a>
+              <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-600">{str(notice.content)}</p>
+              <p className="mt-1 text-xs text-slate-400">{str(notice.publishedAt).slice(0, 10)} · by {str((notice.createdBy as Row)?.name ?? "you")}</p>
             </Card>
           ))}
         </div>
       )}
-      <Dialog open={dialog} title="New notice" onClose={() => setDialog(false)}>
-        <div className="space-y-3">
-          <div><Label required>Title</Label><Input value={form.title ?? ""} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-          <div><Label required>Content</Label><Textarea rows={4} value={form.content ?? ""} onChange={(e) => setForm({ ...form, content: e.target.value })} /></div>
-          <div><Label>Expires at</Label><Input type="date" value={form.expiresAt ?? ""} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} /></div>
-          <FieldError error={formError} />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Publish</Button>
-          </div>
-        </div>
-      </Dialog>
+      <NoticeComposer
+        open={composerOpen}
+        role="TEACHER"
+        initial={{ targets: [{ targetType: "COURSE_OFFERING", targetId: offeringId }] }}
+        onClose={() => setComposerOpen(false)}
+        onSaved={async () => { await mutate(); }}
+      />
     </div>
   );
 }

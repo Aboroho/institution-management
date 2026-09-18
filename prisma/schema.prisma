@@ -76,6 +76,14 @@ enum NotificationType {
   SYSTEM_NOTIFICATION
 }
 
+enum NoticeTargetType {
+  EVERYONE
+  ADMINS
+  COURSE_OFFERING
+  TEACHER
+  STUDENT
+}
+
 enum NotificationChannel {
   IN_APP
   EMAIL
@@ -116,6 +124,8 @@ model User {
   teacher Teacher?
 
   notifications      Notification[] @relation("NotificationRecipient")
+  noticesCreated     Notice[]       @relation("NoticeCreator")
+  noticeRecipients   NoticeRecipient[] @relation("NoticeRecipientUser")
   auditLogs          AuditLog[]     @relation("AuditActor")
   promotionsDecided  StudentPromotion[] @relation("PromotionDecider")
   assignmentsCreated TeacherCourseAssignment[] @relation("AssignmentCreator")
@@ -707,27 +717,82 @@ model AssessmentMarkChangeRequest {
 // ------------------------------------------------ Notices
 model Notice {
   id               String    @id @default(cuid())
-  courseOfferingId String
-  teacherId        String
+  courseOfferingId String?
+  teacherId        String?
+  createdById      String
   title            String
   content          String
   publishedAt      DateTime  @default(now())
   expiresAt        DateTime?
+  deletedAt        DateTime?
+  version          Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  courseOffering CourseOffering @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
-  teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  courseOffering CourseOffering? @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
+  teacher        Teacher?        @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  createdBy      User            @relation("NoticeCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  targets        NoticeTarget[]
+  recipients     NoticeRecipient[]
+  attachments    NoticeAttachment[]
+  notifications  Notification[]  @relation("NoticeNotifications")
 
   @@index([courseOfferingId])
   @@index([teacherId])
+  @@index([createdById])
   @@index([publishedAt])
+  @@index([deletedAt])
+}
+
+model NoticeTarget {
+  id         String           @id @default(cuid())
+  noticeId   String
+  targetType NoticeTargetType
+  // For EVERYONE and ADMINS this is the stable sentinel "*". Other target
+  // types store the trusted database id of the offering, teacher or student.
+  targetId   String
+  createdAt  DateTime         @default(now())
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@index([noticeId])
+}
+
+model NoticeRecipient {
+  id        String   @id @default(cuid())
+  noticeId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user   User   @relation("NoticeRecipientUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([noticeId, userId])
+  @@index([userId])
+  @@index([noticeId])
+}
+
+model NoticeAttachment {
+  id        String   @id @default(cuid())
+  noticeId  String
+  fileId    String
+  createdAt DateTime @default(now())
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  file   File   @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@unique([noticeId, fileId])
+  @@index([noticeId])
+  @@index([fileId])
 }
 
 // ------------------------------------------------ Notifications (NO push)
 model Notification {
   id           String           @id @default(cuid())
   recipientId  String
+  noticeId     String?
   type         NotificationType
   title        String
   message      String
@@ -738,11 +803,14 @@ model Notification {
   updatedAt    DateTime         @updatedAt
 
   recipient  User                   @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  notice     Notice?                @relation("NoticeNotifications", fields: [noticeId], references: [id], onDelete: SetNull)
   deliveries NotificationDelivery[]
 
   @@index([recipientId])
   @@index([isRead])
   @@index([type])
+  @@index([noticeId])
+  @@unique([recipientId, noticeId])
 }
 
 model NotificationDelivery {
@@ -774,8 +842,9 @@ model File {
   uploadedById String
   createdAt    DateTime @default(now())
 
-  uploadedBy User                 @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  submission AssessmentSubmission?
+  uploadedBy      User                @relation("FileUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  submission      AssessmentSubmission?
+  noticeAttachments NoticeAttachment[]
 
   @@index([uploadedById])
 }

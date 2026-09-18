@@ -66,10 +66,15 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET | /marks/history?markId= | teacher+admin |
 | GET/POST | /marks/change-requests | ADMIN / scoped |
 | POST | /marks/change-requests/{id}/approve, .../reject | ADMIN |
-| GET/POST | /notices | scoped |
-| PATCH | /notices/{id} | owner / ADMIN |
+| GET/POST | /notices | scoped; POST accepts JSON or multipart `payload` + repeated `files` |
+| GET | /notices/recipients | ADMIN / TEACHER (role- and assignment-scoped recipient options) |
+| GET/PATCH/DELETE | /notices/{id} | visible recipient / creator / ADMIN; PATCH and DELETE require optimistic `version` |
+| GET/DELETE | /notices/{id}/attachments/{attachmentId}/download (GET) or /notices/{id}/attachments/{attachmentId} (DELETE) | visible recipient for download; creator / ADMIN for removal (DELETE requires notice `version`) |
+| GET | /notices/files?key= | authenticated notice recipient / creator / ADMIN (local-storage fallback only) |
 | GET | /notifications | auth (own) |
 | POST | /notifications/{id}/read, /notifications/read-all | auth (own) |
+Notice targets are `{ type: "EVERYONE" | "ADMINS" | "COURSE_OFFERING" | "TEACHER" | "STUDENT", ids: string[] }`; group targets use an empty `ids` array. Update payloads include required `expectedVersion` and may include `removeAttachmentIds`.
+
 | GET | /reports/attendance, /reports/marks, /reports/students/{id}, /reports/dashboard | ADMIN |
 | GET | /reports/teacher-dashboard | TEACHER |
 | GET | /reports/student-dashboard | STUDENT |
