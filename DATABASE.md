@@ -28,9 +28,33 @@ Fresh local environment:
 docker compose up -d db     # PostgreSQL 16 on localhost:5432 (see .env.example)
 npm install                 # also generates the Prisma Client
 npx prisma migrate deploy   # or: npm run db:deploy
-npm run db:seed             # optional demo data requires SEED_DEMO=true
+npm run db:seed             # marks the protected seed admin; demo data requires SEED_DEMO=true
 npm run dev
 ```
+
+`npm run db:seed` is idempotent and promotes the account configured by
+`SEED_ADMIN_EMAIL` to the protected seed admin (`User.isProtectedSeedAdmin`). Run it once
+after deploying migration `20260918120000_protected_seed_admin_session_version`; the
+migration itself never changes existing rows.
+
+## Protected seed admin and session epoch (2026-09-18)
+
+Migration `20260918120000_protected_seed_admin_session_version` adds two columns to
+`User`:
+
+- `isProtectedSeedAdmin BOOLEAN NOT NULL DEFAULT false` — the persisted identity of the
+  single protected seed admin. Only `prisma/seed.ts` writes it; no API accepts it as
+  input, so it cannot be granted or removed through the application. A partial unique
+  index (`User_single_protected_seed_admin_key` … `WHERE "isProtectedSeedAdmin" = true`)
+  lets the database itself guarantee that at most one protected account exists. The
+  index is created in the migration because the Prisma DSL cannot express `WHERE`.
+- `sessionVersion INTEGER NOT NULL DEFAULT 0` — the session epoch. Session tokens embed
+  the value they were issued with; a password change or admin removal increments it, so
+  tokens issued earlier stop validating without a session table.
+
+No existing row is modified by the migration: the protection is applied by the seed
+script, which is why a deployment that skips `db:seed` fails closed (nobody is treated
+as the seed admin, and admin-management endpoints reject everyone).
 
 ## Core relationship chain
 

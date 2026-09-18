@@ -97,6 +97,18 @@ model User {
   name         String
   role         Role
   isActive     Boolean  @default(true)
+  /// Protected seed admin: the single account provisioned from SEED_ADMIN_* by
+  /// `prisma/seed.ts`. Server-controlled — no API route or client input can set or
+  /// clear it (see `src/modules/users/seed-admin.ts`). The database additionally
+  /// enforces "at most one protected seed admin" with the partial unique index
+  /// `User_single_protected_seed_admin_key` created in migration
+  /// `20260918120000_protected_seed_admin_session_version`.
+  isProtectedSeedAdmin Boolean @default(false)
+  /// Session epoch. Incremented whenever credentials or access change (password
+  /// change, deletion/deactivation). Session tokens carry the value they were
+  /// issued with (`sv`) and `requireAuth` rejects a token whose version is stale,
+  /// which invalidates every other device's session without a session table.
+  sessionVersion Int @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

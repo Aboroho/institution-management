@@ -18,6 +18,10 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | POST | /auth/logout | auth |
 | GET | /auth/me | auth |
 | GET | /users | ADMIN |
+| GET/PATCH | /users/me | auth (own profile only — no user id in the path) |
+| POST | /users/me/change-password | auth (own account; current password required) |
+| GET/POST | /admin/users | ADMIN / protected seed admin |
+| DELETE | /admin/users/{userId} | protected seed admin |
 | GET/PATCH | /institution | auth / ADMIN |
 | GET/POST | /academic-years | auth / ADMIN |
 | GET/PATCH | /academic-years/{id} | auth / ADMIN |
@@ -109,6 +113,38 @@ The centralized admin UI for assignment/substitution lives at
 `/admin/teacher-assignment` (Academic Year → Trade → Semester → Shift → Section
 → Course Offering → Teacher); the legacy `/admin/teacher-assignments` URL
 redirects to it.
+
+## Profile, password and admin accounts
+
+`GET /api/v1/users/me` returns the caller's own profile (`id`, `email`, `name`, `role`,
+`isActive`, `isProtectedSeedAdmin`, linked student/teacher ids). `PATCH` accepts
+`{ name, email }` only: the request schema is strict, so a crafted payload carrying
+`role`, `isActive`, `isProtectedSeedAdmin`, `sessionVersion` or another user's id is
+rejected with 422 instead of being applied (no mass assignment, no IDOR — the profile
+that is written is always the one in the session). Emails are normalized (trim +
+lowercase) and unique case-insensitively; the loser of a concurrent duplicate gets 409
+with an `email` field error. A successful update re-issues the session cookie so the
+name/email shown by the shell is fresh.
+
+`POST /api/v1/users/me/change-password` takes
+`{ currentPassword, newPassword, confirmPassword }` (confirmation is checked on the
+backend too). The current password is verified with bcrypt against the stored hash, the
+new password must satisfy the shared policy (min 8, max 72 characters) and differ from
+the current one. The write is a compare-and-swap on the hash that was verified, so two
+concurrent changes cannot both succeed (the loser receives 409). On success
+`User.sessionVersion` is incremented: every token issued earlier becomes stale
+immediately, while the caller receives a freshly signed cookie. Responses never contain
+passwords or hashes, and audit entries record the event only.
+
+`GET /api/v1/admin/users` keeps the existing ADMIN-wide read policy and reports
+`meta.canManage`. Creating (`POST`) and deleting (`DELETE /{userId}`) admin accounts is
+restricted to the protected seed admin — the backend re-verifies that from the database
+for every call. A new account always receives the normal ADMIN role and is never a
+protected seed admin. Deleting an account that has history (audit entries, marks,
+attendance, assignments, …) deactivates it instead of removing the row, so historical
+records and actor attribution survive; either way the account loses access at once
+(`isActive=false` plus a `sessionVersion` bump for deactivation, row removal otherwise).
+The protected seed admin can never be deleted, including by itself (403).
 
 ## Status codes
 

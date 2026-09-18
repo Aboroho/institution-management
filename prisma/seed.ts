@@ -27,18 +27,74 @@ async function main() {
     console.log("Created institution:", inst.name);
   }
 
-  // Admin
-  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@institution.local").toLowerCase();
+  // ---- Protected seed admin ----
+  // The account configured through SEED_ADMIN_* is the ONE protected seed admin. The
+  // marker is persisted on the user row (`isProtectedSeedAdmin`, with a partial unique
+  // index allowing at most one) because .env alone cannot identify the account after
+  // initialization: it is not stored with the row, it can change between deployments,
+  // and it cannot be enforced in the database. Only this script writes that marker —
+  // no API accepts it as input — so a client can never grant or remove the protection.
+  const adminEmail = (process.env.SEED_ADMIN_EMAIL || "admin@institution.local").trim().toLowerCase();
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || "Admin123!";
-  const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
-  if (!existing) {
-    const passwordHash = await bcrypt.hash(adminPassword, 12);
-    await prisma.user.create({
-      data: { email: adminEmail, name: process.env.SEED_ADMIN_NAME || "System Administrator", role: "ADMIN", passwordHash },
-    });
-    console.log("Created admin:", adminEmail);
+  const adminName = process.env.SEED_ADMIN_NAME || "System Administrator";
+  const resetPassword = process.env.SEED_ADMIN_RESET_PASSWORD === "true";
+
+  const protectedAdmin = await prisma.user.findFirst({
+    where: { isProtectedSeedAdmin: true },
+    select: { id: true, email: true, role: true, isActive: true },
+  });
+
+  if (protectedAdmin) {
+    if (protectedAdmin.email !== adminEmail) {
+      // SEED_ADMIN_EMAIL was changed after the account was marked. Reassigning the
+      // protection here would silently move a security identity, so keep the existing
+      // account and tell the operator exactly what to do.
+      console.warn(
+        `Protected seed admin is already ${protectedAdmin.email}; SEED_ADMIN_EMAIL (${adminEmail}) was ignored. ` +
+          "Protection follows the persisted account — change it deliberately (it cannot be changed through the application).",
+      );
+    } else {
+      if (protectedAdmin.role !== "ADMIN" || !protectedAdmin.isActive) {
+        await prisma.user.update({
+          where: { id: protectedAdmin.id },
+          data: { role: "ADMIN", isActive: true },
+        });
+        console.log("Repaired protected seed admin role/status:", adminEmail);
+      }
+      if (resetPassword) {
+        // Explicit, operator-only credential rotation: the application deliberately
+        // cannot change this account's password.
+        await prisma.user.update({
+          where: { id: protectedAdmin.id },
+          data: { passwordHash: await bcrypt.hash(adminPassword, 12), sessionVersion: { increment: 1 } },
+        });
+        console.log("Rotated protected seed admin password from SEED_ADMIN_PASSWORD:", adminEmail);
+      }
+      console.log("Protected seed admin already exists:", adminEmail);
+    }
   } else {
-    console.log("Admin already exists:", adminEmail);
+    const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+    if (existing) {
+      // Adopt the configured account (e.g. an admin created before this feature shipped).
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { role: "ADMIN", isActive: true, isProtectedSeedAdmin: true },
+      });
+      console.log("Marked existing account as the protected seed admin:", adminEmail);
+    } else {
+      const passwordHash = await bcrypt.hash(adminPassword, 12);
+      await prisma.user.create({
+        data: {
+          email: adminEmail,
+          name: adminName,
+          role: "ADMIN",
+          isActive: true,
+          isProtectedSeedAdmin: true,
+          passwordHash,
+        },
+      });
+      console.log("Created protected seed admin:", adminEmail);
+    }
   }
 
   if (process.env.SEED_DEMO !== "true") {

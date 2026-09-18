@@ -88,11 +88,19 @@ describe("No database/schema changes for the attendance workflow", () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
 
-    // Nothing newer than the committed head migration (20260918100000) may be
-    // created by this work: no `prisma migrate dev`, no hand-written SQL.
+    // Attendance schema changes are frozen at the committed head migration
+    // (20260918100000): no further attendance migration may be created by this work
+    // (no `prisma migrate dev`, no hand-written SQL for these tables). Unrelated
+    // features may still ship their own migrations, which are checked below.
     expect(migrations.every((name) => /^\d{14}_.+$/.test(name))).toBe(true);
-    const newest = [...migrations].sort().at(-1);
-    expect(newest).toBe("20260918100000_attendance_entry_change_requests");
+    expect(migrations).toContain("20260918100000_attendance_entry_change_requests");
+    const attendanceMigrations = migrations.filter((name) => /attendance/i.test(name)).sort();
+    expect(attendanceMigrations).toEqual([
+      "20260915000000_attendance_report_indexes",
+      "20260915120000_drop_attendance_change_log_session_id",
+      "20260915130000_attendance_session_update_count",
+      "20260918100000_attendance_entry_change_requests",
+    ]);
 
     // And no migration may add a column/table the frozen schema does not have.
     const schema = read("prisma", "schema.prisma");

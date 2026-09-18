@@ -6,6 +6,37 @@
 - JWT (HS256, `AUTH_SECRET` ≥ 16 chars) in httpOnly, SameSite=Lax cookie; Secure in production.
 - Inactive users cannot authenticate; sessions revalidated against DB on each request.
 
+## Protected seed admin
+
+- The seed admin is identified by a persisted column, `User.isProtectedSeedAdmin`, written
+  only by `prisma/seed.ts` (idempotent; a partial unique index makes a second protected
+  account impossible). Environment variables are only used to bootstrap it — they are not
+  the identity, so the protection survives restarts, deployments and later .env edits.
+- Applied by the backend, never by hidden UI: the account cannot change its name, email or
+  password, cannot lose the ADMIN role and cannot be deleted by anyone (including itself).
+  Normal admins keep the existing read-only view of user lists and cannot create, delete or
+  modify admin accounts; the seed admin's privileges are limited to create/delete of normal
+  ADMIN accounts.
+- `isProtectedSeedAdmin`, `role`, `isActive` and `sessionVersion` are not accepted by any
+  request schema (`strict()` Zod objects), so client input can neither grant nor remove the
+  protection and cannot escalate privileges through mass assignment.
+- Rejected attempts (profile/password change on the protected account, deletion of it,
+  admin management by a non-seed admin) are audit-logged with actor, operation and reason.
+- Credential rotation for the seed admin is an operator action (`SEED_ADMIN_RESET_PASSWORD=true`
+  with `npm run db:seed`); the application deliberately offers no path to change it.
+
+## Sessions and credential changes
+
+- Session tokens carry the `User.sessionVersion` they were issued with (`sv`). Password
+  changes and admin deletions/deactivations increment the stored version, so every token
+  issued before the change fails `requireAuth` immediately; the device performing the
+  change receives a freshly signed cookie. Old tokens never linger and no session table is
+  needed.
+- Password changes verify the current password with bcrypt and use a compare-and-swap on
+  the verified hash, so two concurrent changes cannot both succeed (the loser gets 409).
+- Passwords are never logged, returned, or included in audit entries; API responses select
+  explicit fields and never expose `passwordHash`.
+
 ## Authorization (backend authoritative)
 
 - Every protected endpoint enforces role + relationship checks in `src/lib/permissions/`.
