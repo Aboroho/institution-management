@@ -1,23 +1,19 @@
 "use client";
-/**
- * AttendanceHistoryDrawer
- *
- * Opens a side drawer for a single AttendanceSession and lists every
- * student-level change (initial entries + corrections) along with who,
- * what, when, why, and whether the change was approval-based.
- *
- * Scope: only changes belonging to the selected AttendanceSession. No
- * unrelated history is shown. Current per-student statuses live in
- * AttendanceSessionStudentsDialog (a separate action in the session list).
- */
+
+/** Session-scoped immutable attendance history, grouped by correction operation. */
 
 import useSWR from "swr";
 import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Badge } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
-import type { AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
+import type { AttendanceHistoryEntry, AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
 
-const str = (v: unknown) => String(v ?? "");
+const str = (value: unknown) => String(value ?? "");
+
+type OperationGroup = {
+  id: string;
+  entries: AttendanceHistoryEntry[];
+};
 
 export function AttendanceHistoryDrawer({
   sessionId,
@@ -31,16 +27,13 @@ export function AttendanceHistoryDrawer({
   const key = sessionId ? `att-hist-${sessionId}` : null;
   const { data, error, isLoading } = useSWR(
     key,
-    () => get<AttendanceHistoryPayload>(`/attendance/sessions/${sessionId}/history`).then((r) => r.data),
+    () => get<AttendanceHistoryPayload>(`/attendance/sessions/${sessionId}/history`).then((response) => response.data),
   );
 
+  const groups = groupHistory(data?.history ?? []);
+
   return (
-    <Dialog
-      open={open}
-      title="Attendance History"
-      wide
-      onClose={onClose}
-    >
+    <Dialog open={open} title="Attendance History" wide onClose={onClose}>
       {isLoading ? (
         <LoadingSkeleton />
       ) : error ? (
@@ -55,72 +48,67 @@ export function AttendanceHistoryDrawer({
               <span className="text-slate-400">·</span>
               <span className="text-slate-600">{data.session.attendanceDate}</span>
             </div>
-            <div className="mt-2">
-              <CourseOfferingBadges offering={data.session.courseOffering} />
-            </div>
+            <div className="mt-2"><CourseOfferingBadges offering={data.session.courseOffering} /></div>
           </div>
 
           <section>
             <h3 className="mb-2 text-sm font-semibold text-slate-700">Change history (immutable)</h3>
-            {data.history.length === 0 ? (
+            {groups.length === 0 ? (
               <EmptyState title="No changes yet" hint="This session has not been modified since it was created." />
             ) : (
-              <Table headers={["Date", "Student", "Roll", "Previous", "New", "By", "Role", "Reason", "Type", "Approval"]}>
-                {data.history.map((h) => {
-                  const student = data.students.find((s) => s.recordId === h.recordId);
-                  return (
-                    <tr key={h.id} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 text-xs text-slate-600">{new Date(h.timestamp).toLocaleString()}</td>
-                      <td className="px-3 py-2 text-sm">
-                        {student ? (
-                          <span className="flex flex-col">
-                            <span className="font-medium">{student.name}</span>
-                            <span className="font-mono text-[11px] text-slate-500">{student.studentId}</span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-sm font-medium">
-                        {student?.rollNumber ?? <span className="text-slate-400">—</span>}
-                      </td>
-                      <td className="px-3 py-2 text-sm">{h.oldStatus ? <StatusBadge status={h.oldStatus} /> : <span className="text-slate-400">—</span>}</td>
-                      <td className="px-3 py-2 text-sm font-medium"><StatusBadge status={h.newStatus} /></td>
-                      <td className="px-3 py-2 text-sm">{h.changedBy.name}</td>
-                      <td className="px-3 py-2 text-xs"><Badge tone="violet">{h.changedBy.role}</Badge></td>
-                      <td className="px-3 py-2 text-sm text-slate-600">{h.reason}</td>
-                      <td className="px-3 py-2 text-xs">
-                        {h.changeType === "INITIAL_ENTRY" ? (
-                          <Badge>Initial</Badge>
-                        ) : h.viaApproval ? (
-                          <Badge tone="violet">Approval</Badge>
-                        ) : (
-                          <Badge tone="amber">Direct</Badge>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {h.relatedChangeRequest ? (
-                          <span className="flex flex-col gap-1">
-                            <StatusBadge status={h.relatedChangeRequest.status} />
-                            <span className="text-[11px] text-slate-500">
-                              #{h.relatedChangeRequest.id.slice(0, 8)}
-                              {h.relatedChangeRequest.reviewedBy
-                                ? ` · by ${h.relatedChangeRequest.reviewedBy.name}`
-                                : ""}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </Table>
+              <div className="space-y-4">
+                {groups.map((group) => (
+                  <div key={group.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                      <Badge tone={group.entries[0].viaApproval ? "violet" : "amber"}>
+                        {group.entries[0].changeType === "INITIAL_ENTRY" ? "Initial entry" : group.entries[0].viaApproval ? "Approved request" : "Direct correction"}
+                      </Badge>
+                      <span className="font-semibold text-slate-700">{group.entries.length} student change{group.entries.length === 1 ? "" : "s"} in this operation</span>
+                      {group.entries[0].requestId && <span className="font-mono text-xs text-slate-500">Request {group.entries[0].requestId.slice(0, 8)}</span>}
+                      {group.entries[0].operationId && <span className="font-mono text-xs text-slate-400">Operation {group.entries[0].operationId.slice(0, 8)}</span>}
+                    </div>
+                    <Table headers={["Date", "Student", "Roll", "Previous", "New", "By", "Role", "Reason", "Approval"]}>
+                      {group.entries.map((history) => {
+                        const student = data.students.find((item) => item.recordId === history.recordId);
+                        return (
+                          <tr key={history.id} className="hover:bg-white">
+                            <td className="px-3 py-2 text-xs text-slate-600">{new Date(history.timestamp).toLocaleString()}</td>
+                            <td className="px-3 py-2 text-sm">
+                              {student ? <span className="flex flex-col"><span className="font-medium">{student.name}</span><span className="font-mono text-[11px] text-slate-500">{student.studentId}</span></span> : <span className="text-slate-400">—</span>}
+                            </td>
+                            <td className="px-3 py-2 text-sm font-medium">{student?.rollNumber ?? <span className="text-slate-400">—</span>}</td>
+                            <td className="px-3 py-2 text-sm">{history.oldStatus ? <StatusBadge status={history.oldStatus} /> : <span className="text-slate-400">—</span>}</td>
+                            <td className="px-3 py-2 text-sm font-medium"><StatusBadge status={history.newStatus} /></td>
+                            <td className="px-3 py-2 text-sm">{history.changedBy.name}</td>
+                            <td className="px-3 py-2 text-xs"><Badge tone="violet">{history.changedBy.role}</Badge></td>
+                            <td className="px-3 py-2 text-sm text-slate-600">{history.reason}</td>
+                            <td className="px-3 py-2 text-xs">
+                              {history.relatedChangeRequest ? (
+                                <span className="flex flex-col gap-1"><StatusBadge status={history.relatedChangeRequest.status} /><span className="text-[11px] text-slate-500">{history.relatedChangeRequest.reviewedBy ? `by ${history.relatedChangeRequest.reviewedBy.name}` : "Pending review"}</span></span>
+                              ) : <span className="text-slate-400">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Table>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         </div>
       )}
     </Dialog>
   );
+}
+
+function groupHistory(entries: AttendanceHistoryEntry[]): OperationGroup[] {
+  const grouped = new Map<string, AttendanceHistoryEntry[]>();
+  for (const entry of entries) {
+    const id = entry.operationId ?? entry.requestId ?? entry.id;
+    const current = grouped.get(id) ?? [];
+    current.push(entry);
+    grouped.set(id, current);
+  }
+  return [...grouped.entries()].map(([id, groupEntries]) => ({ id, entries: groupEntries }));
 }

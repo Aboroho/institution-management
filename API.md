@@ -43,15 +43,16 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | POST | /teacher-assignments/substitute | ADMIN (transactional: closes the current assignment, creates the replacement; rejected for inactive offerings / inactive academic years) |
 | GET/POST | /schedules | scoped / ADMIN |
 | GET | /schedules/history?courseOfferingId= | scoped |
-| GET | /attendance/sessions | scoped teacher+admin (read sessions) |
-| POST | /attendance/sessions | assigned TEACHER only (admins are rejected with 403 — they approve change requests instead) |
+| GET | /attendance/sessions | scoped teacher+admin; date lookup includes authoritative session permissions/correction capacity |
+
+| POST | /attendance/sessions | assigned TEACHER only; `mode=create` is create-only and returns 409 for a session that appeared concurrently, `mode=edit` applies one direct correction operation |
 | GET | /course-offerings/{id}/attendance/sessions | scoped teacher+admin (paginated, date-filtered, server-side summary + update count) |
 | GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (full section roster + status for one session) |
 | GET | /attendance/sessions/{sessionId}/history | scoped teacher+admin (immutable change log + related change requests) |
 | GET | /attendance/records/{id} | scoped teacher+admin |
 | GET | /attendance/change-requests | ADMIN |
-| POST | /attendance/change-requests | assigned TEACHER only |
-| POST | /attendance/change-requests/{id}/approve, .../reject | ADMIN |
+| POST | /attendance/change-requests | assigned TEACHER only; accepts `{sessionId, reason, changes:[{recordId,newStatus}]}` and rejects requests while session correction capacity remains |
+| POST | /attendance/change-requests/{id}/approve, .../reject | ADMIN; reviews and applies the complete session-level request atomically |
 | GET/POST | /assessments | scoped |
 | GET/PATCH | /assessments/{id} | scoped |
 | GET | /submissions?assessmentId= | scoped |

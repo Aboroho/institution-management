@@ -14,10 +14,7 @@ import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, La
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import { filterByRoll } from "@/modules/attendance/attendance.permissions";
-import {
-  TEACHER_DIRECT_CORRECTIONS,
-  type AttendanceSessionRosterPayload,
-} from "@/modules/attendance/attendance.types";
+import type { AttendanceSessionRosterPayload } from "@/modules/attendance/attendance.types";
 
 const str = (v: unknown) => String(v ?? "");
 
@@ -90,7 +87,7 @@ export function AttendanceSessionStudentsDialog({
                   Showing {filtered.length} of {data.records.length} students
                 </p>
               )}
-              <Table headers={["Roll", "Student ID", "Name", "Status", "Direct corrections"]}>
+              <Table headers={["Roll", "Student ID", "Name", "Status"]}>
                 {filtered.map((r) => (
                   <tr key={r.id ?? `missing-${r.studentId}`} className="hover:bg-slate-50">
                     <td className="px-4 py-2 font-medium">{r.rollNumber ?? <span className="text-slate-400">—</span>}</td>
@@ -111,7 +108,6 @@ export function AttendanceSessionStudentsDialog({
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-sm">{r.directCorrections}/{TEACHER_DIRECT_CORRECTIONS} used</td>
                   </tr>
                 ))}
               </Table>

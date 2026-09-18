@@ -19,7 +19,7 @@ AcademicYear -> Trade -> Semester -> Shift -> Section -> Course -> CourseOfferin
 User, Institution, AcademicYear, Trade, Semester, Shift, Section, Course, Curriculum,
 CurriculumCourse, CourseOffering, Student, StudentEnrollment, StudentPromotion, Teacher,
 TeacherCourseAssignment, ScheduleVersion, ScheduleItem, AttendanceSession, AttendanceRecord,
-AttendanceChangeLog, AttendanceChangeRequest, Assessment, AssessmentSubmission, AssessmentMark,
+AttendanceChangeLog, AttendanceChangeRequest, AttendanceChangeRequestItem, Assessment, AssessmentSubmission, AssessmentMark,
 AssessmentMarkChangeLog, AssessmentMarkChangeRequest, Notice, Notification, NotificationDelivery,
 File, AuditLog.
 
@@ -40,17 +40,26 @@ File, AuditLog.
 - `Section` — unique on (academicYearId, tradeId, semesterId, shiftId, name); context immutable.
 - Indexes on year/trade/semester/shift/section/offering/student/teacher/date/assessment/notification recipient+read state.
 
-## Correction-counting rule (implemented)
+## Attendance correction and approval model (implemented)
 
-Initial entry is not a correction. Teachers get 2 direct corrections per attendance record
-and per mark; beyond that a `*ChangeRequest` (PENDING) requires admin approve/reject.
-Approvals run in transactions (update + immutable log + request + audit).
+Initial attendance creation is not a correction. `AttendanceSession.updateCount` is the
+authoritative attendance-entry counter: one direct save that changes one or more students
+increments it exactly once, and one approved request increments it exactly once. The configured
+limit is `TEACHER_DIRECT_CORRECTIONS` (currently 2). Individual `AttendanceRecord.directCorrections`
+values are legacy per-record history only and are never used to decide capacity.
 
-The Attendance Report's per-session update count reads `AttendanceChangeLog` rows with
-`oldStatus IS NOT NULL` and takes each row's session from its related record
-(`AttendanceChangeLog.recordId -> AttendanceRecord.sessionId`). The session link is never
-denormalized onto the log row: a nullable copy would have to be backfilled and would silently
-count pre-existing rows as zero modifications.
+Once the session counter reaches the limit, a teacher cannot save a direct correction and cannot
+submit a request while capacity remains. A request is one operation for one session and contains
+one normalized `AttendanceChangeRequestItem` per proposed student change. Each item stores the
+record, old status and proposed status. A partial unique database index permits only one pending
+request per session, including under concurrent submissions.
+
+`AttendanceChangeLog` is append-only. It stores the operation ID, change type
+(`INITIAL_ENTRY`, `DIRECT_CORRECTION`, or `APPROVED_REQUEST`) and associated request ID when
+applicable. The history UI groups all student-level rows from one operation together.
+Approval/rejection runs in one database transaction; approval revalidates every old status,
+updates every record atomically, writes one log row per student, and increments the session once.
+Rejected requests retain their complete proposed change set and reason.
 
 ## Curriculum rules (service-enforced, no schema change)
 
@@ -72,10 +81,16 @@ npm run db:deploy
 npm run db:seed            # admin + institution (+ demo data with SEED_DEMO=true)
 ```
 
+Migration `20260918100000_attendance_entry_change_requests` safely copies the legacy
+single-record request columns into `AttendanceChangeRequestItem`, backfills each request's
+session, preserves the request rows and audit history, then enforces one pending request per
+session. On an existing database deploy it after the earlier migrations; do not reset production
+or delete old requests.
+
 The baseline migration `20260914000000_init` creates the full schema, so a brand-new
-database is built with `npm run db:deploy` alone (6 migrations, applied in timestamp
-order). The chain was replay-tested from an empty database and converges exactly on
-`prisma/schema.prisma`.
+database is built with `npm run db:deploy` alone (7 migrations, applied in timestamp
+order). After deployment, run `npx prisma migrate status` and `npx prisma validate` to confirm the
+local database and generated client match `prisma/schema.prisma`.
 
 For an existing database, back it up first, then inspect before changing anything:
 

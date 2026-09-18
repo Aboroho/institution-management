@@ -49,6 +49,12 @@ enum ChangeRequestStatus {
   REJECTED
 }
 
+enum AttendanceChangeType {
+  INITIAL_ENTRY
+  DIRECT_CORRECTION
+  APPROVED_REQUEST
+}
+
 enum AssessmentType {
   ASSIGNMENT
   CLASS_TEST
@@ -104,8 +110,8 @@ model User {
   schedulesCreated   ScheduleVersion[] @relation("ScheduleCreator")
   sessionsCreated    AttendanceSession[] @relation("SessionCreator")
   attendanceLogs     AttendanceChangeLog[] @relation("AttendanceChanger")
-  attendanceRequests AttendanceChangeRequest[] @relation("AttendanceRequester")
   attendanceReviews  AttendanceChangeRequest[] @relation("AttendanceReviewer")
+  attendanceSessionRequests AttendanceChangeRequest[] @relation("AttendanceSessionRequester")
   assessmentsCreated Assessment[] @relation("AssessmentCreator")
   marksEntered       AssessmentMark[] @relation("MarkEnterer")
   markLogs           AssessmentMarkChangeLog[] @relation("MarkChanger")
@@ -497,6 +503,7 @@ model AttendanceSession {
   courseOffering CourseOffering     @relation(fields: [courseOfferingId], references: [id], onDelete: Restrict)
   createdBy      User               @relation("SessionCreator", fields: [createdById], references: [id], onDelete: Restrict)
   records        AttendanceRecord[]
+  changeRequests AttendanceChangeRequest[]
 
   @@unique([courseOfferingId, attendanceDate])
   @@index([courseOfferingId])
@@ -516,7 +523,7 @@ model AttendanceRecord {
   session        AttendanceSession        @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   student        Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
   changeLogs     AttendanceChangeLog[]
-  changeRequests AttendanceChangeRequest[]
+  changeRequestItems AttendanceChangeRequestItem[]
 
   @@unique([sessionId, studentId])
   @@index([studentId])
@@ -524,26 +531,30 @@ model AttendanceRecord {
 }
 
 model AttendanceChangeLog {
-  id          String            @id @default(cuid())
+  id          String               @id @default(cuid())
   recordId    String
   oldStatus   AttendanceStatus?
   newStatus   AttendanceStatus
   changedById String
   reason      String
-  createdAt   DateTime          @default(now())
+  changeType  AttendanceChangeType @default(INITIAL_ENTRY)
+  operationId String?
+  requestId   String?
+  createdAt   DateTime             @default(now())
 
   record    AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
   changedBy User             @relation("AttendanceChanger", fields: [changedById], references: [id], onDelete: Restrict)
+  request   AttendanceChangeRequest? @relation("AttendanceRequestLog", fields: [requestId], references: [id], onDelete: Restrict)
 
   @@index([recordId])
+  @@index([requestId])
+  @@index([operationId])
 }
 
 model AttendanceChangeRequest {
   id            String              @id @default(cuid())
-  recordId      String
+  sessionId     String
   requestedById String
-  oldStatus     AttendanceStatus
-  newStatus     AttendanceStatus
   reason        String
   status        ChangeRequestStatus @default(PENDING)
   reviewedById  String?
@@ -552,12 +563,29 @@ model AttendanceChangeRequest {
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
-  record      AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  requestedBy User             @relation("AttendanceRequester", fields: [requestedById], references: [id], onDelete: Restrict)
-  reviewedBy  User?            @relation("AttendanceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  requestedBy User              @relation("AttendanceSessionRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  reviewedBy  User?             @relation("AttendanceReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  changes     AttendanceChangeRequestItem[]
+  logs        AttendanceChangeLog[] @relation("AttendanceRequestLog")
 
-  @@index([recordId])
+  @@index([sessionId])
   @@index([status])
+}
+
+model AttendanceChangeRequestItem {
+  id              String           @id @default(cuid())
+  changeRequestId String
+  recordId        String
+  oldStatus       AttendanceStatus
+  newStatus       AttendanceStatus
+  createdAt       DateTime         @default(now())
+
+  changeRequest AttendanceChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  record        AttendanceRecord        @relation(fields: [recordId], references: [id], onDelete: Restrict)
+
+  @@unique([changeRequestId, recordId])
+  @@index([recordId])
 }
 
 // ------------------------------------------------ Assessments & submissions & marks

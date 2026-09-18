@@ -563,6 +563,7 @@ Entities:
 - AttendanceRecord
 - AttendanceChangeLog
 - AttendanceChangeRequest
+- AttendanceChangeRequestItem (normalized student-level proposals within one request)
 
 AttendanceSession unique:
 
@@ -599,12 +600,16 @@ Admin (product decision 2026-09-15 — overrides the earlier "may edit indefinit
 - admins may approve or reject teacher change requests; approval is the ONLY
   mechanism through which an admin can cause an attendance change
 
-Correction:
-- mandatory reason
-
-Every correction:
-- immutable history record
-- audit record where appropriate
+Correction and approval:
+- initial attendance creation is not a correction
+- `AttendanceSession.updateCount` is authoritative; one save touching many students counts as one operation
+- teachers can directly correct an entry only while its configured capacity remains and the edit window is open
+- individual `AttendanceRecord.directCorrections` values are not used for quota decisions
+- once capacity is exhausted, the teacher submits one session-level request containing every proposed student change and a mandatory reason
+- an entry cannot receive a request while direct capacity remains
+- every direct correction and approved request writes immutable student-level history and an operation ID
+- rejected requests retain their complete proposed change set, reason and review information
+- admins can review/approve/reject requests but cannot directly edit attendance
 
 ------------------------------------------------------------
 Missing historical session
@@ -1766,10 +1771,12 @@ Table:
 - status
 - note/reason where supported
 
-Actions:
+Actions for a new date:
 - mark all present
-- individual status changes
+- one accessible radio group per student (Present, Absent, Late, Excused)
 - save
+
+If a session already exists for the selected date, the create view shows only the recorded-attendance message and a link to the report. It never offers another save or session creation control. The unique database constraint and transactional create operation also protect concurrent submissions.
 
 Attendance save must use real API.
 
@@ -1779,20 +1786,22 @@ Do not locally pretend save succeeded.
 40. ATTENDANCE CORRECTION UI
 ============================================================
 
-When modifying:
+The report's edit view receives authoritative session permission state from the backend.
 
-Show:
-- current status
-- new status
-- reason required
-- direct corrections remaining
+When direct capacity remains and the edit window is open:
+- show the radio status cards and Save Attendance
+- do not show a reason box or Request Change control
 
-When approval required:
-show clearly:
+When capacity is exhausted:
+- allow the teacher to prepare multiple student changes
+- show one mandatory reason box for the complete attendance entry
+- show Request Change for the attendance entry, not per student
+- do not show a normal Save Attendance button
 
-"Admin approval required"
+The backend rejects requests while capacity remains, validates all records belong to the same
+AttendanceSession, prevents conflicting pending requests, and revalidates current values during
+admin approval.
 
-Submit a real change request.
 
 ============================================================
 41. ATTENDANCE HISTORY
@@ -1818,19 +1827,19 @@ Use real backend history.
 
 Show:
 - teacher
-- course
-- section
-- student
-- old status
-- new status
+- course, section and academic context
+- attendance date
+- submission timestamp
 - reason
-- request date
-- status
+- every affected student, roll number and name
+- previous and proposed status for every student
+- affected-student count
+- request and review status
 
 Actions:
-- approve
-- reject
-- inspect history
+- approve all proposed changes atomically
+- reject while preserving the complete request history
+- inspect grouped attendance history
 
 ============================================================
 43. ASSESSMENT WORKFLOW

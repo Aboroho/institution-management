@@ -134,6 +134,7 @@ async function loadRoutes(role: ActorRole) {
     saveSessionAttendance: spies.saveSessionAttendance,
     listSessions: spies.listSessions,
     getSession: spies.getSession,
+    getSessionForAttendanceEditor: spies.getSession,
     getSessionHistory: spies.getSessionHistory,
     listChangeRequests: spies.listChangeRequests,
     createChangeRequest: spies.createChangeRequest,
@@ -306,7 +307,7 @@ describe("Attendance change requests — teacher files, admin reviews", () => {
 
   it("POST forbids ADMIN (admins approve; they never file requests)", async () => {
     const { changeRequests } = await loadRoutes("ADMIN");
-    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { recordId: "rec-1", newStatus: "ABSENT", reason: "Wrong" }));
+    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { sessionId: "sess-1", changes: [{ recordId: "rec-1", newStatus: "ABSENT" }], reason: "Wrong" }));
     expect(res.status).toBe(403);
     expect(spies.createChangeRequest).not.toHaveBeenCalled();
   });
@@ -314,7 +315,7 @@ describe("Attendance change requests — teacher files, admin reviews", () => {
   it("POST forbids a teacher who is not assigned to the record's offering", async () => {
     state.assignment = null;
     const { changeRequests } = await loadRoutes("TEACHER");
-    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { recordId: "rec-1", newStatus: "ABSENT", reason: "Wrong" }));
+    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { sessionId: "sess-1", changes: [{ recordId: "rec-1", newStatus: "ABSENT" }], reason: "Wrong" }));
     expect(res.status).toBe(403);
     expect(spies.createChangeRequest).not.toHaveBeenCalled();
   });
@@ -322,9 +323,9 @@ describe("Attendance change requests — teacher files, admin reviews", () => {
   it("POST lets the assigned teacher file a request", async () => {
     state.assignment = { id: "asg-1", courseOfferingId: "off-1", teacherId: "teacher-1", isActive: true };
     const { changeRequests } = await loadRoutes("TEACHER");
-    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { recordId: "rec-1", newStatus: "ABSENT", reason: "Wrong" }));
+    const res = await changeRequests.POST(jsonRequest("http://localhost/api/v1/attendance/change-requests", "POST", { sessionId: "sess-1", changes: [{ recordId: "rec-1", newStatus: "ABSENT" }], reason: "Wrong" }));
     expect(res.status).toBe(201);
-    expect(spies.createChangeRequest).toHaveBeenCalledWith(expect.objectContaining({ recordId: "rec-1", newStatus: "ABSENT", requestedById: "actor-1" }));
+    expect(spies.createChangeRequest).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "sess-1", changes: [{ recordId: "rec-1", newStatus: "ABSENT" }], requestedById: "actor-1" }));
   });
 
   it("POST /approve is admin-only", async () => {
