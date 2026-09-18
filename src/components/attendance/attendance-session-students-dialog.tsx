@@ -87,18 +87,12 @@ export function AttendanceSessionStudentsDialog({
                   Showing {filtered.length} of {data.records.length} students
                 </p>
               )}
-              <Table headers={["Roll", "Student ID", "Name", "Status"]}>
+              <Table headers={["Roll", "Status", "Name", ]}>
                 {filtered.map((r) => (
                   <tr key={r.id ?? `missing-${r.studentId}`} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 font-medium">{r.rollNumber ?? <span className="text-slate-400">—</span>}</td>
-                    <td className="px-4 py-2 font-mono text-xs">{r.studentId}</td>
-                    <td className="px-4 py-2">
-                      <span className="flex flex-col">
-                        <span className="font-medium">{r.studentName}</span>
-                        <span className="text-[11px] text-slate-500">{r.studentEmail}</span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 font-bold">{r.rollNumber ?? <span className="text-slate-400">—</span>}</td>
+                    {/* <td className="px-4 py-2 font-mono text-xs">{r.studentId}</td> */}
+                      <td className="px-4 py-2">
                       {r.status === "NOT_MARKED" ? (
                         <span className="text-sm text-slate-400">Not marked</span>
                       ) : (
@@ -108,6 +102,13 @@ export function AttendanceSessionStudentsDialog({
                         </>
                       )}
                     </td>
+                    <td className="px-4 py-2">
+                      <span className="flex flex-col">
+                        <span className="font-medium">{r.studentName}</span>
+                        <span className="text-[11px] text-slate-500">{r.studentEmail}</span>
+                      </span>
+                    </td>
+                  
                   </tr>
                 ))}
               </Table>
