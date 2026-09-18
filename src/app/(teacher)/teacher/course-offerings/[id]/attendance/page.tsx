@@ -29,6 +29,9 @@ function Content({ id }: { id: string }) {
   const router = useRouter();
   const initial = searchParams.get("tab") === "report" ? "report" : "take";
   const [tab, setTab] = useState(initial);
+  // ?date= lets the report (and any deep link) open Take Attendance on a
+  // specific day, so "edit this entry" never needs a second editor component.
+  const dateParam = searchParams.get("date");
 
   const { data, error, isLoading } = useSWR(`off-${id}`, () =>
     get<Row>(`/course-offerings/${id}`).then((r) => r.data),
@@ -68,6 +71,7 @@ function Content({ id }: { id: string }) {
         <AttendanceTakeForm
           offeringId={id}
           offering={data}
+          {...(dateParam ? { initialDate: dateParam } : {})}
           reportHref={`/teacher/course-offerings/${id}/attendance?tab=report`}
         />
       ) : (
@@ -76,6 +80,7 @@ function Content({ id }: { id: string }) {
           offering={data}
           offeringTitle={`${str(course?.title)} · ${str(section?.name)}`}
           editBasePath={`/teacher/course-offerings/${id}/attendance/edit`}
+          takeHref={`/teacher/course-offerings/${id}/attendance?tab=take`}
         />
       )}
     </div>

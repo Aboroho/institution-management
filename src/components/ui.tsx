@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -8,19 +8,50 @@ import { Loader2, AlertTriangle, Inbox, ChevronLeft, ChevronRight, ChevronDown, 
 export const cn = (...xs: (string | false | null | undefined)[]) => twMerge(clsx(xs));
 
 // ---------- Buttons / inputs ----------
-export function Button({ variant = "primary", className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" | "outline" }) {
+/**
+ * One button scale for the whole app.
+ *
+ *   md  — the default: page-level actions (Save, Approve, Apply filters).
+ *   sm  — inline/row actions and secondary controls; keeps touch targets
+ *         comfortable on mobile without looking oversized on desktop.
+ *
+ * Only two sizes exist on purpose: pages that invent their own padding are how
+ * the app drifted into "one screen, five button heights".
+ */
+export function Button({
+  variant = "primary",
+  size = "md",
+  className,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
+  size?: "sm" | "md";
+}) {
+  return <button {...props} className={buttonClass(variant, size, className)} />;
+}
+
+/** The shared class recipe, so links that navigate can look exactly like buttons. */
+export function buttonClass(
+  variant: "primary" | "secondary" | "danger" | "ghost" | "outline" = "primary",
+  size: "sm" | "md" = "md",
+  className?: string,
+) {
   const styles = {
     primary: "bg-brand-600 text-white hover:bg-brand-700",
     secondary: "bg-slate-100 text-slate-800 hover:bg-slate-200",
     danger: "bg-red-600 text-white hover:bg-red-700",
     ghost: "text-slate-600 hover:bg-slate-100",
-    outline: "border border-slate-300 text-slate-700 hover:bg-slate-50",
+    outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
   } as const;
-  return (
-    <button
-      {...props}
-      className={cn("inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50", styles[variant], className)}
-    />
+  const sizes = {
+    sm: "gap-1.5 rounded-lg px-3 py-1.5 text-[13px]",
+    md: "gap-2 rounded-lg px-4 py-2 text-sm",
+  } as const;
+  return cn(
+    "inline-flex items-center justify-center font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+    sizes[size],
+    styles[variant],
+    className,
   );
 }
 
@@ -432,16 +463,108 @@ export function Tabs({ tabs, active, onChange }: { tabs: { id: string; label: st
 }
 
 // ---------- Dialog ----------
-export function Dialog({ open, title, children, onClose, wide }: { open: boolean; title: string; children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+/**
+ * Accessible modal used by every confirm/detail dialog in the app.
+ *
+ * Keyboard contract (added for the attendance dialogs, so it applies to all):
+ *   - Escape closes (unless the caller forbids it while a mutation is running),
+ *   - focus moves into the dialog on open and returns to the trigger on close,
+ *   - the panel is labelled by its title, and Tab stays inside the dialog.
+ */
+export function Dialog({
+  open,
+  title,
+  children,
+  onClose,
+  wide,
+  labelledBy,
+}: {
+  open: boolean;
+  title: string;
+  children: React.ReactNode;
+  onClose: () => void;
+  wide?: boolean;
+  /** Set false while a submit/cancel request is in flight to avoid lost work. */
+  labelledBy?: string;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<Element | null>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    restoreRef.current = document.activeElement;
+    // Focus the panel (or its first control) so keyboard users land inside the
+    // dialog instead of tabbing through the page behind it.
+    const focusable = panelRef.current?.querySelector<HTMLElement>(
+      "button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])",
+    );
+    (focusable ?? panelRef.current)?.focus();
+    const previouslyFocused = restoreRef.current as HTMLElement | null;
+    return () => {
+      if (previouslyFocused && typeof previouslyFocused.focus === "function") previouslyFocused.focus();
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+      );
+      if (!focusables || focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && (active === first || active === panelRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="dialog" aria-modal="true">
-      <div className={cn("max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white p-6 shadow-xl", wide ? "max-w-3xl" : "max-w-lg")} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">✕</button>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={labelledBy ?? titleId}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className={cn(
+          "flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-xl bg-white shadow-xl outline-none sm:max-h-[90vh] sm:rounded-xl",
+          wide ? "sm:max-w-3xl" : "sm:max-w-lg",
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <h2 id={titleId} className="text-lg font-bold text-slate-900">{title}</h2>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
-        {children}
+        {/* Body scrolls on its own so the header and the action row stay reachable
+            on short/ narrow screens. */}
+        <div className="overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
   );

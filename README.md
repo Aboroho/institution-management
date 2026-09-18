@@ -605,11 +605,78 @@ Correction and approval:
 - `AttendanceSession.updateCount` is authoritative; one save touching many students counts as one operation
 - teachers can directly correct an entry only while its configured capacity remains and the edit window is open
 - individual `AttendanceRecord.directCorrections` values are not used for quota decisions
-- once capacity is exhausted, the teacher submits one session-level request containing every proposed student change and a mandatory reason
+- once capacity is exhausted, the teacher submits one entry-level (session-level) request containing every proposed student change and a mandatory reason
 - an entry cannot receive a request while direct capacity remains
+- an entry cannot receive a SECOND request while one is PENDING; this is enforced in
+  the backend (checked inside the creating transaction AND by the partial unique
+  index `AttendanceChangeRequest_one_pending_per_session_key`), so a concurrent
+  double submit is answered with 409 rather than two active requests
+- the teacher who filed a PENDING request may CANCEL it ("Withdraw request");
+  once an admin approved or rejected it, cancellation is refused (409) and the
+  admin decision stands. Cancelling never deletes anything: the request keeps its
+  reason, its complete proposed change set and its history, and is recorded as
+  REJECTED + the machine-readable reviewNote marker
+  "Withdrawn by the requesting teacher before admin review."
+  `ChangeRequestStatus` has no CANCELLED value and none was added — the frozen
+  schema means cancellation is a DISPLAY state (`displayStatus: "CANCELLED"`),
+  derived by the backend from that marker
 - every direct correction and approved request writes immutable student-level history and an operation ID
 - rejected requests retain their complete proposed change set, reason and review information
 - admins can review/approve/reject requests but cannot directly edit attendance
+- all of the above is computed by the backend and returned as a `permissions`
+  object on every attendance read; no screen counts corrections or re-derives
+  the quota on the client
+
+------------------------------------------------------------
+Teacher attendance screens (UI)
+------------------------------------------------------------
+
+Both screens live under /teacher/course-offerings/{id}/attendance and share one
+component set (src/components/attendance): take attendance and the report are the
+same roster, status pills, change list, date badge and pending-request dialog —
+neither page re-implements the other.
+
+Take Attendance renders three states from one backend payload
+(GET /api/v1/attendance/sessions?courseOfferingId&date):
+
+1. no entry for the date  -> the create form (roll no., name, one status per
+   student, summary chips, Save Attendance). Saving posts `mode: "create"`, so
+   if an entry appears meanwhile the backend answers 409 and the recorded entry
+   is shown instead of a second session being created.
+2. entry exists           -> the RECORDED attendance is displayed IN PLACE: roll
+   no., name and status for every ACTIVE student of the section, the
+   Present/Absent/Late/Excused summary, and the date + offering context. It is
+   never replaced by a link to the report. "Edit attendance" switches the same
+   roster into editable controls.
+3. editing                -> every changed student is listed (roll no., name,
+   previous -> proposed). Saving opens a CONFIRMATION DIALOG that repeats that
+   complete list, states whether the save is a direct correction or an approval
+   request, and only asks for a reason when an approval request is required.
+   The dialog disables its actions while submitting (no double submit), shows
+   the backend error if the mutation failed, and both screens refresh after
+   success. There is no per-student "Request change" button anywhere: a change
+   set for an entry is one request.
+
+Pending Update Requests (Take Attendance and the report header) opens a dialog
+listing date, offering, submitted-at, reason, status and every affected student's
+previous -> proposed status, with a count badge fed by `meta.pendingCount`. The
+same dialog can be opened for a single entry from its "Pending request" row
+action.
+PENDING rows the teacher filed carry a "Cancel request" action with a
+confirmation step; rows an admin already decided show the decision instead.
+
+Attendance Report stays session-level: one row per entry with its summary,
+update count and the entry state line the backend makes possible
+("1 direct correction left — 1 of 2 correction operations used for this entry",
+"Request pending · 3 students — corrections are locked until an admin reviews
+the request", "Approval required", "The teacher edit window has closed for this
+entry, so it is read-only"), plus View attendance / History / Edit attendance
+actions and a "Take Attendance" deep link (?date=) that pre-selects that entry.
+
+Responsive + accessible: status controls are radiogroups with visible labels (a
+status is never colour-only), dialogs scroll inside the viewport and fit small
+screens, and no attendance table forces horizontal page overflow. The app has no
+dark mode, so these screens ship light-theme only.
 
 ------------------------------------------------------------
 Missing historical session

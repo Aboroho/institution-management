@@ -10,13 +10,15 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
-  Card, Button, Input, LoadingSkeleton, EmptyState, ErrorState, Pagination, Label,
+  Card, Button, buttonClass, Input, LoadingSkeleton, EmptyState, ErrorState, Pagination, Label, Badge,
 } from "@/components/ui";
 import { get, qs } from "@/lib/api/client";
-import { History, PencilLine, FilterX, Users } from "lucide-react";
+import { ClipboardList, FilterX, History, PencilLine, Users } from "lucide-react";
 import { AttendanceDateBadge, weekdayName, monthYearLabel } from "./date-display";
 import { AttendanceHistoryDrawer } from "./attendance-history-drawer";
 import { AttendanceSessionStudentsDialog } from "./attendance-session-students-dialog";
+import { AttendancePendingRequestsDialog } from "./attendance-pending-requests-dialog";
+import { useAttendanceChangeRequests } from "./use-attendance-change-requests";
 import { offeringContextLabel } from "@/components/course-offering-context";
 import type { AttendanceReportItem } from "@/modules/attendance/attendance.types";
 
@@ -33,6 +35,7 @@ export function AttendanceReportList({
   offeringTitle,
   offering,
   editBasePath,
+  takeHref,
   showEdit = true,
 }: {
   offeringId: string;
@@ -45,6 +48,11 @@ export function AttendanceReportList({
   offering?: Row;
   /** Base path used to navigate to "Edit" for a given session (date appended). */
   editBasePath?: string;
+  /**
+   * Link back to the Take Attendance tab. The two screens are two views of the
+   * same workflow, so each offers a way into the other instead of dead-ending.
+   */
+  takeHref?: string;
   /**
    * Show the per-session Edit action. Teachers: true. Admins: MUST be false —
    * admins are read-only for attendance (view entries + history, approve
@@ -61,6 +69,7 @@ export function AttendanceReportList({
   const [appliedTo, setAppliedTo] = useState("");
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [studentsFor, setStudentsFor] = useState<string | null>(null);
+  const [requestsFor, setRequestsFor] = useState<string | null>(null);
 
   // Switching course offering (admin dependent filters) must not keep a page
   // number that the new offering's session list may not have.
@@ -103,6 +112,11 @@ export function AttendanceReportList({
     router.push(`${editBasePath}?date=${encodeURIComponent(item.attendanceDate)}`);
   }
 
+  // Teacher-only affordance: how many of THIS offering's requests are waiting.
+  const { pendingCount } = useAttendanceChangeRequests(
+    showEdit && editBasePath ? { courseOfferingId: offeringId, status: "PENDING" } : null,
+  );
+
   const emptyMessage = useMemo(() => {
     if (hasDateFilter) return "No attendance records found for the selected date range.";
     return "No attendance records found.";
@@ -114,6 +128,33 @@ export function AttendanceReportList({
 
   return (
     <div className="space-y-4">
+      {(takeHref || showEdit) && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-500">
+            Every attendance entry of this course offering, newest date first. Open an entry to read its
+            recorded statuses, its change history, or its correction state.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {showEdit && (
+              <Button variant="outline" size="sm" onClick={() => setRequestsFor("")}>
+                <ClipboardList size={14} aria-hidden="true" />
+                Pending update requests
+                {pendingCount > 0 && (
+                  <span className="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-amber-100 px-1 text-[11px] font-semibold text-amber-900">
+                    {pendingCount}
+                  </span>
+                )}
+              </Button>
+            )}
+            {takeHref && (
+              <a href={takeHref} className={buttonClass("primary", "sm")}>
+                <Users size={14} aria-hidden="true" /> Take attendance for a date
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -139,10 +180,10 @@ export function AttendanceReportList({
             />
           </div>
           <div className="flex gap-2">
-            <Button onClick={applyFilter}>
-              <FilterX size={14} /> Apply
+            <Button size="sm" onClick={applyFilter}>
+              <FilterX size={14} aria-hidden="true" /> Apply
             </Button>
-            <Button variant="outline" onClick={resetFilter} disabled={!hasDateFilter}>
+            <Button variant="outline" size="sm" onClick={resetFilter} disabled={!hasDateFilter}>
               Reset
             </Button>
           </div>
@@ -174,7 +215,7 @@ export function AttendanceReportList({
           {items.map((s) => (
             <Card key={s.id} className="p-4">
               <div className="flex flex-wrap items-start gap-4">
-                <AttendanceDateBadge iso={s.attendanceDate} />
+                <AttendanceDateBadge iso={s.attendanceDate} size="sm" />
                 <div className="min-w-[140px] flex-1">
                   <p className="text-sm font-semibold text-slate-800">
                     {weekdayName(s.attendanceDate)} · {monthYearLabel(s.attendanceDate)}
@@ -188,17 +229,23 @@ export function AttendanceReportList({
                     <Stat label="Excused" value={s.summary.excused} tone="blue" />
                     <Stat label="Updated" value={pluralUpdates(s.updateCount)} tone="violet" />
                   </dl>
+                  <EntryStateLine item={s} />
                 </div>
                 <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto sm:flex-col">
-                  <Button variant="outline" onClick={() => setStudentsFor(s.id)}>
-                    <Users size={16} /> Student Status
+                  <Button variant="outline" size="sm" onClick={() => setStudentsFor(s.id)}>
+                    <Users size={14} aria-hidden="true" /> View attendance
                   </Button>
-                  <Button variant="outline" onClick={() => setHistoryFor(s.id)}>
-                    <History size={16} /> History
+                  <Button variant="outline" size="sm" onClick={() => setHistoryFor(s.id)}>
+                    <History size={14} aria-hidden="true" /> History
                   </Button>
+                  {showEdit && s.pendingChangeRequest && (
+                    <Button variant="outline" size="sm" onClick={() => setRequestsFor(s.id)}>
+                      <ClipboardList size={14} aria-hidden="true" /> Pending request
+                    </Button>
+                  )}
                   {showEdit && editBasePath && (
-                    <Button onClick={() => openEdit(s)}>
-                      <PencilLine size={16} /> Edit
+                    <Button size="sm" onClick={() => openEdit(s)}>
+                      <PencilLine size={14} aria-hidden="true" /> Edit attendance
                     </Button>
                   )}
                 </div>
@@ -228,8 +275,64 @@ export function AttendanceReportList({
         open={historyFor !== null}
         onClose={() => setHistoryFor(null)}
       />
+
+      <AttendancePendingRequestsDialog
+        open={requestsFor !== null}
+        onClose={() => setRequestsFor(null)}
+        courseOfferingId={offeringId}
+        {...(requestsFor ? { sessionId: requestsFor } : {})}
+      />
     </div>
   );
+}
+
+/**
+ * Correction / request state of one attendance entry, straight from the backend
+ * permission object (never recomputed here). This is what tells a teacher why an
+ * entry can or cannot be edited before they click into it.
+ */
+function EntryStateLine({ item }: { item: AttendanceReportItem }) {
+  const pending = item.pendingChangeRequest;
+  if (pending) {
+    return (
+      <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge tone="amber">
+          Request pending · {pending.changeCount} student{pending.changeCount === 1 ? "" : "s"}
+        </Badge>
+        <span className="text-slate-500">
+          Corrections are locked until an admin reviews the request.
+        </span>
+      </p>
+    );
+  }
+  const p = item.permissions;
+  if (!p) return null;
+  if (p.canDirectCorrect) {
+    return (
+      <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge tone="green">
+          {p.correctionCapacityRemaining} direct correction{p.correctionCapacityRemaining === 1 ? "" : "s"} left
+        </Badge>
+        <span className="text-slate-500">
+          {p.correctionsUsed} of {p.directCorrectionLimit} correction operations used for this entry.
+        </span>
+      </p>
+    );
+  }
+  if (p.canRequestChange) {
+    return (
+      <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge tone="amber">Approval required</Badge>
+        <span className="text-slate-500">Direct corrections are used up, so changes go to an admin as one request.</span>
+      </p>
+    );
+  }
+  if (!p.withinEditWindow) {
+    return (
+      <p className="mt-2 text-xs text-slate-500">The teacher edit window has closed for this entry, so it is read-only.</p>
+    );
+  }
+  return <p className="mt-2 text-xs text-slate-500">Read-only view — corrections are made on the Take Attendance screen.</p>;
 }
 
 function Stat({ label, value, tone }: { label: string; value: number | string; tone: "slate" | "green" | "red" | "amber" | "blue" | "violet" }) {

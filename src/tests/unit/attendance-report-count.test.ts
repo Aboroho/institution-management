@@ -21,6 +21,9 @@ const { prismaMock } = vi.hoisted(() => ({
     attendanceSession: { count: vi.fn(), findMany: vi.fn() },
     attendanceRecord: { groupBy: vi.fn() },
     attendanceChangeLog: { findMany: vi.fn() },
+    // The report also reads the single pending change request per entry so the
+    // listing can show WHY an entry is locked (see the state tests below).
+    attendanceChangeRequest: { findMany: vi.fn() },
   },
 }));
 
@@ -49,14 +52,22 @@ function stubDb() {
   );
   prismaMock.attendanceSession.count.mockResolvedValue(2);
   prismaMock.attendanceSession.findMany.mockResolvedValue([
-    makeSession("s1", "2026-09-15", 2),
-    makeSession("s2", "2026-09-14", 0),
+    makeSession("s1", isoToday(), 2),
+    makeSession("s2", isoToday(-1), 0),
   ]);
   prismaMock.attendanceRecord.groupBy.mockResolvedValue([
     { sessionId: "s1", status: "PRESENT", _count: { _all: 40 } },
     { sessionId: "s1", status: "ABSENT", _count: { _all: 1 } },
     { sessionId: "s2", status: "PRESENT", _count: { _all: 41 } },
   ]);
+  prismaMock.attendanceChangeRequest.findMany.mockResolvedValue([]);
+}
+
+/** Today's date as a yyyy-mm-dd string, so the edit-window rule is deterministic. */
+function isoToday(offsetDays = 0) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
 }
 
 beforeEach(() => {
@@ -104,6 +115,62 @@ describe("Attendance Report — update count source", () => {
     expect(res).toMatchObject({ items: [], total: 0, page: 1 });
     expect(prismaMock.attendanceRecord.groupBy).not.toHaveBeenCalled();
     expect(prismaMock.attendanceChangeLog.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("Attendance Report — correction + request state (backend authority)", () => {
+  it("exposes the permission object instead of letting the UI count corrections", async () => {
+    stubDb();
+
+    const res = await listAttendanceReport({ courseOfferingId: "off-1", canEdit: true });
+
+    // s1 used both operations -> approval path; s2 is untouched -> direct edits.
+    expect(res.items[0].permissions).toMatchObject({
+      directCorrectionLimit: 2,
+      correctionsUsed: 2,
+      correctionCapacityRemaining: 0,
+      canDirectCorrect: false,
+      hasPendingChangeRequest: false,
+    });
+    expect(res.items[1].permissions).toMatchObject({
+      correctionsUsed: 0,
+      correctionCapacityRemaining: 2,
+      canDirectCorrect: true,
+      canRequestChange: false,
+    });
+  });
+
+  it("keeps an entry read-only for callers without correction rights", async () => {
+    stubDb();
+
+    const res = await listAttendanceReport({ courseOfferingId: "off-1" });
+
+    expect(res.items.map((i) => i.permissions?.canDirectCorrect)).toEqual([false, false]);
+  });
+
+  it("marks the entry whose request is still pending and blocks further requests", async () => {
+    stubDb();
+    prismaMock.attendanceChangeRequest.findMany.mockResolvedValue([
+      {
+        id: "req-1",
+        sessionId: "s1",
+        reason: "Register was mis-copied",
+        status: "PENDING",
+        createdAt: new Date("2026-09-16T09:00:00.000Z"),
+        _count: { changes: 3 },
+      },
+    ]);
+
+    const res = await listAttendanceReport({ courseOfferingId: "off-1", canEdit: true });
+
+    expect(res.items[0].pendingChangeRequest).toMatchObject({ id: "req-1", changeCount: 3 });
+    expect(res.items[0].permissions).toMatchObject({ hasPendingChangeRequest: true, canRequestChange: false });
+    expect(res.items[1].pendingChangeRequest).toBeNull();
+    // The lookup is one query for the whole page, filtered to PENDING rows of
+    // the sessions actually being rendered.
+    expect(prismaMock.attendanceChangeRequest.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { sessionId: { in: ["s1", "s2"] }, status: "PENDING" } }),
+    );
   });
 });
 

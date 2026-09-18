@@ -55,6 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       pageSize: parsed.pageSize ?? DEFAULT_ATTENDANCE_PAGE_SIZE,
       sort: parsed.sort,
       order: parsed.order,
+      // Correction state is only actionable for the assigned teacher; admins get
+      // the same listing with canDirectCorrect/canRequestChange false, which is
+      // exactly how the read-only report must render it.
+      canEdit: auth.role === "TEACHER",
     });
 
     return paginated(items, page, pageSize, total);
