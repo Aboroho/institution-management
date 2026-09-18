@@ -26,9 +26,12 @@ async function handle<T>(res: Response): Promise<{ data: T; meta?: Record<string
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<{ data: T; meta?: Record<string, unknown> }> {
   let res: Response;
   try {
+    const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+    const headers = new Headers(init?.headers);
+    if (!isFormData && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
     res = await fetch(`/api/v1${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers,
     });
   } catch {
     throw new ApiError("NETWORK_ERROR", "Unable to connect. Check your connection and try again.", 0);
@@ -41,6 +44,10 @@ export const post = <T,>(path: string, body?: unknown) =>
   apiFetch<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 export const patch = <T,>(path: string, body: unknown) =>
   apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+export const postForm = <T,>(path: string, body: FormData) =>
+  apiFetch<T>(path, { method: "POST", body });
+export const patchForm = <T,>(path: string, body: FormData) =>
+  apiFetch<T>(path, { method: "PATCH", body });
 export const del = <T,>(path: string) => apiFetch<T>(path, { method: "DELETE" });
 
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {

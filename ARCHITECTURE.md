@@ -218,3 +218,37 @@ configured environment. Suggested manual checks: submit a blank CRUD form, corre
 only one field, submit a server-rejected value, retry after a connection failure,
 then close/reopen and edit another record; verify focus, error clearing, preserved
 values and keyboard submission throughout.
+
+## Notice Management & Linked Notifications (2026-09-18)
+
+Notice delivery is now a recipient snapshot rather than an implicit course-only lookup:
+
+```text
+Notice + NoticeTarget + NoticeRecipient
+       ├── NoticeAttachment -> File -> private S3-compatible/local storage
+       └── Notification.noticeId -> NotificationDelivery
+```
+
+- `Notice.createdById` is the server-side owner. Teachers may manage only notices they
+  created; admins are the explicit administrative exception and may manage any active
+  notice. Updates and deletes require the current `Notice.version` (optimistic
+  concurrency), and deletes soft-delete the notice so audit/target history remains.
+- Target expansion is performed in the notices service from database relationships.
+  `EVERYONE` and teacher/admin/student/offering targets are role checked; teacher
+  offering targets are re-checked against active assignments; teacher student targets
+  are re-checked against active enrollments in those assignments. The resulting unique
+  `NoticeRecipient` rows are the student/teacher delivery and read-access boundary, in addition to the explicit creator/admin ownership rules.
+- Editing message content does not create another notification. Changing targets removes
+  access and stale notice notifications for removed recipients, preserves existing
+  `isRead` state for retained recipients, and creates one in-app notification only for
+  newly added recipients. Overlapping targets are deduplicated by both the service and
+  the database constraint.
+- Notice notifications carry both `noticeId` and the existing `resourceType/resourceId`.
+  Portal notification links include the exact notification ID; opening a notice through
+  that link marks only that authenticated recipient's notification as read. Other
+  resource links continue to use the existing resource IDs and approval routes.
+- Notice uploads are byte-sniffed, bounded to 10 files / 25 MB each / 100 MB total, use
+  random storage keys, and never expose S3 credentials or public bucket URLs. S3 uses
+  short-lived presigned URLs; the local fallback uses an authenticated notice-file route.
+  Failed writes remove already-uploaded objects. Removed/deleted attachments are deleted
+  from storage only when no notice or assessment submission still references the File.
