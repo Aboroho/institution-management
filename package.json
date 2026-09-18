@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "npm run prisma:generate && next build",
     "start": "next start",
-    "predev": "prisma generate",
+    "predev": "prisma generate && node scripts/db-migration-check.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

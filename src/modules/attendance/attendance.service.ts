@@ -775,7 +775,11 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
           data: { status: "REJECTED", reviewedById: opts.reviewedById, reviewedAt: new Date(), reviewNote: opts.reviewNote },
         });
         if (rejected.count !== 1) throw conflict("Request was already reviewed");
-        return tx.attendanceChangeRequest.findUnique({ where: { id }, include: { changes: true } });
+        // Same-transaction read: the row was just updated, so it cannot be
+        // missing; throw keeps the return type non-null for callers.
+        const rejectedRequest = await tx.attendanceChangeRequest.findUnique({ where: { id }, include: { changes: true } });
+        if (!rejectedRequest) throw notFound("Change request not found");
+        return rejectedRequest;
       }
 
       const session = await tx.attendanceSession.findUnique({ where: { id: request.sessionId } });
@@ -822,7 +826,11 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
         });
       }
       await tx.attendanceSession.update({ where: { id: session.id }, data: { updateCount: { increment: 1 } } });
-      return tx.attendanceChangeRequest.findUnique({ where: { id }, include: { changes: true } });
+      // Same-transaction read: the row was just updated, so it cannot be
+      // missing; throw keeps the return type non-null for callers.
+      const approvedRequest = await tx.attendanceChangeRequest.findUnique({ where: { id }, include: { changes: true } });
+      if (!approvedRequest) throw notFound("Change request not found");
+      return approvedRequest;
     });
   } catch (error) {
     if (prismaErrorCode(error) === "P2034") {
