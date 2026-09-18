@@ -45,7 +45,7 @@ export function AttendanceSessionStudentsDialog({
   }
 
   return (
-    <Dialog open={open} title="Student Status" wide onClose={close}>
+    <Dialog open={open} title="Student status — recorded attendance" wide onClose={close}>
       {isLoading ? (
         <LoadingSkeleton />
       ) : error ? (

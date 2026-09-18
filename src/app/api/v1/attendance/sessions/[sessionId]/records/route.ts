@@ -5,7 +5,7 @@ import { requireActiveTeacherAssignment } from "@/lib/permissions/permissions";
 import { ok, fail } from "@/lib/api/response";
 import { prisma } from "@/lib/db/prisma";
 import { notFound } from "@/lib/errors/errors";
-import { attendanceOfferingContextSelect, dateOnlyISO } from "@/modules/attendance/attendance.service";
+import { getSessionRoster } from "@/modules/attendance/attendance.service";
 
 /**
  * GET /api/v1/attendance/sessions/{sessionId}/records
@@ -16,6 +16,10 @@ import { attendanceOfferingContextSelect, dateOnlyISO } from "@/modules/attendan
  * (no AttendanceRecord yet) are included with status NOT_MARKED so the
  * dialog always has the complete section list for frontend roll filtering.
  *
+ * The roster itself is built by `getSessionRoster` — the same service the Take
+ * Attendance page uses for its read-only view — so the two screens cannot
+ * drift apart.
+ *
  * Authorization:
  *   ADMIN -> any session (institution-wide inspection)
  *   TEACHER -> must be currently assigned to the offering the session belongs to
@@ -24,20 +28,10 @@ import { attendanceOfferingContextSelect, dateOnlyISO } from "@/modules/attendan
 export async function GET(_req: NextRequest, { params }: { params: { sessionId: string } }) {
   try {
     const auth = await requireAuth();
+
     const session = await prisma.attendanceSession.findUnique({
       where: { id: params.sessionId },
-      include: {
-        // Shared select: the offering context foreign keys (academicYearId,
-        // tradeId, semesterId, shiftId, sectionId) are REQUIRED to look up the
-        // section's ACTIVE enrollments below, so they are always selected
-        // together with the display relations.
-        courseOffering: { select: attendanceOfferingContextSelect },
-        records: {
-          include: {
-            student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
-          },
-        },
-      },
+      select: { id: true, courseOfferingId: true },
     });
     if (!session) throw notFound("Attendance session not found");
 
@@ -48,46 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
       return fail(new AppError("FORBIDDEN", "You do not have access to this resource", 403));
     }
 
-    const o = session.courseOffering;
-    // Complete section roster (never just the recorded subset).
-    const enrollments = await prisma.studentEnrollment.findMany({
-      where: {
-        academicYearId: o.academicYearId,
-        tradeId: o.tradeId,
-        semesterId: o.semesterId,
-        shiftId: o.shiftId,
-        sectionId: o.sectionId,
-        status: "ACTIVE",
-      },
-      include: {
-        student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } },
-      },
-      orderBy: { rollNumber: "asc" },
-    });
-
-    const recordByStudent = new Map(session.records.map((r) => [r.student.id, r] as const));
-
-    return ok({
-      session: {
-        id: session.id,
-        attendanceDate: dateOnlyISO(session.attendanceDate),
-        courseOffering: session.courseOffering,
-      },
-      records: enrollments.map((e) => {
-        const r = recordByStudent.get(e.student.id);
-        return {
-          id: r?.id ?? null,
-          rollNumber: e.rollNumber,
-          studentId: e.student.studentId,
-          studentName: e.student.user.name,
-          studentEmail: e.student.user.email,
-          status: r?.status ?? "NOT_MARKED",
-          hasRecord: Boolean(r),
-          note: r?.note ?? null,
-          directCorrections: r?.directCorrections ?? 0,
-        };
-      }),
-    });
+    return ok(await getSessionRoster(params.sessionId));
   } catch (e) {
     return fail(e);
   }

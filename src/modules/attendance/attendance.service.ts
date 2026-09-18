@@ -7,10 +7,19 @@ import {
   TEACHER_DIRECT_CORRECTIONS,
   DEFAULT_ATTENDANCE_PAGE_SIZE,
   MAX_ATTENDANCE_PAGE_SIZE,
-  type AttendanceSessionSummary,
+  WITHDRAWN_REQUEST_NOTE,
+  computeAttendancePermissions,
+  isWithdrawnChangeRequest,
+  resolveChangeRequestStatus,
+  type AttendanceChangeRequestChange,
+  type AttendanceEntryState,
+  type AttendanceRequestDisplayStatus,
   type AttendanceReportItem,
   type AttendanceHistoryPayload,
+  type AttendanceOfferingContext,
   type AttendanceSessionPermissions,
+  type AttendanceSessionStudent,
+  type AttendanceSessionSummary,
 } from "./attendance.types";
 
 export {
@@ -18,8 +27,20 @@ export {
   TEACHER_DIRECT_CORRECTIONS,
   DEFAULT_ATTENDANCE_PAGE_SIZE,
   MAX_ATTENDANCE_PAGE_SIZE,
+  WITHDRAWN_REQUEST_NOTE,
+  computeAttendancePermissions,
+  resolveChangeRequestStatus,
 } from "./attendance.types";
-export type { AttendanceSessionSummary, AttendanceReportItem, AttendanceHistoryPayload } from "./attendance.types";
+export type {
+  AttendanceChangeRequestChange,
+  AttendanceEntryState,
+  AttendanceReportItem,
+  AttendanceHistoryPayload,
+  AttendanceOfferingContext,
+  AttendanceSessionPermissions,
+  AttendanceSessionStudent,
+  AttendanceSessionSummary,
+} from "./attendance.types";
 
 /**
  * Midnight UTC of the given date. Attendance dates are timezone-agnostic
@@ -275,6 +296,9 @@ export async function getSession(courseOfferingId: string, date: Date) {
   return prisma.attendanceSession.findUnique({
     where: { courseOfferingId_attendanceDate: { courseOfferingId, attendanceDate: d } },
     include: {
+      // The offering context is required for the roster lookup below (its five
+      // academic foreign keys scope the enrollments) and for the page header.
+      courseOffering: { select: attendanceOfferingContextSelect },
       records: {
         include: { student: { include: { user: { select: { name: true, email: true } } } } },
         orderBy: { student: { studentId: "asc" } },
@@ -284,29 +308,196 @@ export async function getSession(courseOfferingId: string, date: Date) {
 }
 
 /**
- * Session data for the teacher editor. The permission object is computed from
- * the stored session counter and current server time; clients never send a
- * quota, teacher id, or authorization flag back as authority.
+ * AttendanceRecord row as the roster builder needs it.
+ *
+ * Both `studentId` (the FK) and the included `student` relation are optional
+ * because the builder is fed by two call sites: the API route (records include
+ * `student`) and the teacher editor (full rows). Students are keyed by
+ * `studentId ?? student.id`, which are the same value for a real Prisma row.
  */
-export async function getSessionForAttendanceEditor(courseOfferingId: string, date: Date, canEdit = true) {
+type SessionRecordLike = {
+  id: string;
+  studentId?: string | null;
+  status?: string | null;
+  note?: string | null;
+  directCorrections?: number | null;
+  student?: { id: string; studentId?: string | null; user?: { name?: string | null; email?: string | null } | null } | null;
+};
+
+/** ACTIVE enrollment row of the offering's section, with the student profile. */
+type EnrollmentLike = {
+  rollNumber?: number | null;
+  student?: { id?: string; studentId?: string; user?: { name?: string | null; email?: string | null } | null } | null;
+};
+
+/**
+ * Section enrollment rows for an offering, scoped by the FULL academic context.
+ *
+ * NEVER filter by `sectionId` alone: section names repeat across academic
+ * years/trades/semesters/shifts, so a partial filter would mix roll numbers of
+ * unrelated enrollments (the bug that broke the history endpoint).
+ */
+export async function fetchOfferingEnrollments(
+  offering: AttendanceOfferingContext | null | undefined,
+): Promise<EnrollmentLike[]> {
+  const hasContext = Boolean(
+    offering?.academicYearId && offering?.tradeId && offering?.semesterId && offering?.shiftId && offering?.sectionId,
+  );
+  if (!hasContext || !offering) return [];
+  return prisma.studentEnrollment.findMany({
+    where: {
+      academicYearId: offering.academicYearId,
+      tradeId: offering.tradeId,
+      semesterId: offering.semesterId,
+      shiftId: offering.shiftId,
+      sectionId: offering.sectionId,
+      status: "ACTIVE",
+    },
+    include: { student: { select: { id: true, studentId: true, user: { select: { name: true, email: true } } } } },
+    orderBy: { rollNumber: "asc" },
+  });
+}
+
+/**
+ * Merge a session's recorded statuses with the complete section roster.
+ *
+ * Shared by the Student Status endpoint and the Take Attendance editor, so the
+ * two screens can never disagree about who is in the class or what was
+ * recorded. Students without a record yet are returned as NOT_MARKED — the
+ * teacher sees the gap instead of a silently missing row.
+ */
+export function buildAttendanceRoster(
+  records: SessionRecordLike[],
+  enrollments: EnrollmentLike[],
+): { roster: AttendanceSessionStudent[]; summary: AttendanceSessionSummary } {
+  const recordByStudent = new Map<string, SessionRecordLike>();
+  for (const record of records) {
+    const key = record.studentId ?? record.student?.id ?? "";
+    if (key) recordByStudent.set(key, record);
+  }
+
+  const fromEnrollment = (enrollment: EnrollmentLike): AttendanceSessionStudent => {
+    const studentId = enrollment.student?.id ?? "";
+    const record = recordByStudent.get(studentId);
+    recordByStudent.delete(studentId);
+    return {
+      id: record?.id ?? null,
+      studentPk: studentId,
+      rollNumber: enrollment.rollNumber ?? null,
+      studentId: enrollment.student?.studentId ?? "",
+      studentName: enrollment.student?.user?.name ?? "",
+      studentEmail: enrollment.student?.user?.email ?? "",
+      status: record?.status ?? "NOT_MARKED",
+      hasRecord: Boolean(record),
+      note: record?.note ?? null,
+      directCorrections: record?.directCorrections ?? 0,
+    };
+  };
+
+  let roster = enrollments.map(fromEnrollment);
+  if (roster.length === 0) {
+    // No resolvable roster (incomplete academic context, or the section has no
+    // ACTIVE enrollment any more): fall back to the recorded rows so the
+    // teacher can still read the attendance that exists.
+    roster = records.map((record) => ({
+      id: record.id,
+      studentPk: record.student?.id ?? record.studentId ?? "",
+      rollNumber: null,
+      studentId: record.student?.studentId ?? "",
+      studentName: record.student?.user?.name ?? "",
+      studentEmail: record.student?.user?.email ?? "",
+      status: record.status ?? "NOT_MARKED",
+      hasRecord: true,
+      note: record.note ?? null,
+      directCorrections: record.directCorrections ?? 0,
+    }));
+  }
+
+  const summary: AttendanceSessionSummary = { total: 0, present: 0, absent: 0, late: 0, excused: 0 };
+  for (const record of records) {
+    summary.total += 1;
+    if (record.status === "PRESENT") summary.present += 1;
+    else if (record.status === "ABSENT") summary.absent += 1;
+    else if (record.status === "LATE") summary.late += 1;
+    else if (record.status === "EXCUSED") summary.excused += 1;
+  }
+
+  return { roster, summary };
+}
+
+/**
+ * Student Status payload for one session (used by the report dialog and the
+ * Take Attendance read-only view).
+ */
+export async function getSessionRoster(sessionId: string) {
+  const session = await prisma.attendanceSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      courseOffering: { select: attendanceOfferingContextSelect },
+      records: {
+        include: { student: { include: { user: { select: { name: true, email: true } } } } },
+        orderBy: { student: { studentId: "asc" } },
+      },
+    },
+  });
+  if (!session) throw notFound("Attendance session not found");
+  const enrollments = await fetchOfferingEnrollments(session.courseOffering as unknown as AttendanceOfferingContext);
+  const { roster, summary } = buildAttendanceRoster(session.records as unknown as SessionRecordLike[], enrollments);
+  return {
+    session: {
+      id: session.id,
+      attendanceDate: dateOnlyISO(session.attendanceDate),
+      courseOffering: session.courseOffering,
+    },
+    records: roster,
+    summary,
+  };
+}
+
+/**
+ * Authoritative state of one CourseOffering + date for the Take Attendance page:
+ * the recorded attendance (or `null` when nothing was recorded yet), the
+ * summary, the correction state and the single pending change request.
+ *
+ * The permission object is computed from the stored session counter and the
+ * current server time; clients never send a quota, teacher id, or
+ * authorization flag back as authority.
+ */
+export async function getSessionForAttendanceEditor(courseOfferingId: string, date: Date, canEdit = true): Promise<AttendanceEntryState | null> {
   const session = await getSession(courseOfferingId, date);
   if (!session) return null;
   const pending = await prisma.attendanceChangeRequest.findFirst({
     where: { sessionId: session.id, status: "PENDING" },
-    select: { id: true },
+    select: { id: true, reason: true, status: true, createdAt: true, _count: { select: { changes: true } } },
   });
-  const capacityRemaining = Math.max(0, TEACHER_DIRECT_CORRECTIONS - session.updateCount);
-  const withinEditWindow = daysOld(session.attendanceDate) <= TEACHER_EDIT_WINDOW_DAYS;
-  const permissions: AttendanceSessionPermissions = {
-    directCorrectionLimit: TEACHER_DIRECT_CORRECTIONS,
-    correctionsUsed: session.updateCount,
-    correctionCapacityRemaining: capacityRemaining,
-    withinEditWindow,
-    canDirectCorrect: canEdit && withinEditWindow && capacityRemaining > 0,
-    canRequestChange: canEdit && capacityRemaining === 0 && !pending,
+  const permissions = computeAttendancePermissions({
+    updateCount: session.updateCount,
+    attendanceDateAgeDays: daysOld(session.attendanceDate),
+    canEdit,
     hasPendingChangeRequest: Boolean(pending),
+  });
+  const enrollments = await fetchOfferingEnrollments(session.courseOffering as unknown as AttendanceOfferingContext);
+  const { roster, summary } = buildAttendanceRoster(session.records as unknown as SessionRecordLike[], enrollments);
+  return {
+    id: session.id,
+    courseOfferingId: session.courseOfferingId,
+    attendanceDate: dateOnlyISO(session.attendanceDate),
+    updateCount: session.updateCount,
+    note: session.note ?? null,
+    summary,
+    roster,
+    permissions,
+    pendingChangeRequest: pending
+      ? {
+          id: pending.id,
+          reason: pending.reason,
+          status: pending.status,
+          displayStatus: resolveChangeRequestStatus(pending),
+          createdAt: pending.createdAt.toISOString(),
+          changeCount: pending._count.changes,
+        }
+      : null,
   };
-  return { ...session, permissions };
 }
 
 export async function listSessions(courseOfferingId: string, opts: { from?: Date; to?: Date }) {
@@ -339,6 +530,8 @@ export async function listAttendanceReport(opts: {
   pageSize?: number;
   sort?: "attendanceDate";
   order?: "asc" | "desc";
+  /** Whether the caller may correct entries at all (teachers only). */
+  canEdit?: boolean;
 }): Promise<{ items: AttendanceReportItem[]; total: number; page: number; pageSize: number }> {
   const courseOfferingId = opts.courseOfferingId;
   const page = Math.max(1, Math.floor(opts.page ?? 1));
@@ -394,6 +587,28 @@ export async function listAttendanceReport(opts: {
     else if (g.status === "EXCUSED") s.excused = c;
   }
 
+  // The report must show WHICH entries are locked behind an approval, so the
+  // single pending request per entry is fetched for the whole page in one query
+  // (at most one PENDING row per session is possible — the partial unique index
+  // `AttendanceChangeRequest_one_pending_per_session_key` guarantees it).
+  const pendingRows =
+    (await prisma.attendanceChangeRequest.findMany({
+      where: { sessionId: { in: sessionIds }, status: "PENDING" },
+      select: { id: true, sessionId: true, reason: true, status: true, createdAt: true, _count: { select: { changes: true } } },
+    })) ?? [];
+  const pendingBySession = new Map<string, NonNullable<AttendanceReportItem["pendingChangeRequest"]>>();
+  for (const request of pendingRows) {
+    if (!request?.sessionId) continue;
+    pendingBySession.set(request.sessionId, {
+      id: request.id,
+      reason: request.reason,
+      status: request.status,
+      displayStatus: resolveChangeRequestStatus(request),
+      createdAt: request.createdAt.toISOString(),
+      changeCount: request._count?.changes ?? 0,
+    });
+  }
+
   const items: AttendanceReportItem[] = sessions.map((s) => ({
     id: s.id,
     courseOfferingId: s.courseOfferingId,
@@ -403,6 +618,16 @@ export async function listAttendanceReport(opts: {
     updatedAt: s.updatedAt.toISOString(),
     summary: summaries.get(s.id) ?? { total: 0, present: 0, absent: 0, late: 0, excused: 0 },
     updateCount: s.updateCount,
+    // Correction + request state is computed here (server-side) so the report
+    // and the Take Attendance page can never disagree about what the teacher is
+    // allowed to do with an entry.
+    permissions: computeAttendancePermissions({
+      updateCount: s.updateCount,
+      attendanceDateAgeDays: daysOld(s.attendanceDate),
+      canEdit: opts.canEdit ?? false,
+      hasPendingChangeRequest: pendingBySession.has(s.id),
+    }),
+    pendingChangeRequest: pendingBySession.get(s.id) ?? null,
   }));
 
   return { items, total, page, pageSize };
@@ -572,6 +797,26 @@ export type AttendanceChangeProposal = {
   newStatus: AttendanceStatus;
 };
 
+/**
+ * Submit ONE approval request for a whole attendance entry.
+ *
+ * Every guard the UI applies is re-applied here — a stale or hand-crafted
+ * client payload must never create a second review path:
+ *
+ *   1. reason is mandatory, and the change set must be non-empty and unique;
+ *   2. the session must exist (the route re-verifies the teacher's ACTIVE
+ *      assignment for the session's CourseOffering, never trusting a
+ *      client-supplied teacherId);
+ *   3. an entry with direct correction capacity left must NOT be escalated to
+ *      an admin (quota = AttendanceSession.updateCount, authoritative);
+ *   4. at most ONE pending request per entry — checked inside the transaction
+ *      and guaranteed by the partial unique index
+ *      `AttendanceChangeRequest_one_pending_per_session_key`, so two concurrent
+ *      submissions cannot both become active (the loser gets P2002 -> 409);
+ *   5. every proposed record must belong to this session, and its proposed
+ *      status must differ from the CURRENT status (a stale edit is rejected
+ *      instead of silently overwriting whatever an approval changed).
+ */
 export async function createChangeRequest(data: {
   sessionId: string;
   changes: AttendanceChangeProposal[];
@@ -600,7 +845,11 @@ export async function createChangeRequest(data: {
         where: { sessionId: session.id, status: "PENDING" },
         select: { id: true },
       });
-      if (pending) throw conflict("A pending change request already exists for this attendance entry", { requestId: pending.id });
+      if (pending) {
+        throw conflict("This attendance entry already has a request awaiting admin review. Cancel it before submitting another.", {
+          requestId: pending.id,
+        });
+      }
 
       const recordIds = data.changes.map((change) => change.recordId);
       const records = await tx.attendanceRecord.findMany({
@@ -627,13 +876,28 @@ export async function createChangeRequest(data: {
           reason,
           changes: { create: changes },
         },
-        select: { id: true, sessionId: true, requestedById: true, reason: true, status: true, createdAt: true },
+        select: {
+          id: true,
+          sessionId: true,
+          requestedById: true,
+          reason: true,
+          status: true,
+          createdAt: true,
+          _count: { select: { changes: true } },
+        },
       });
-      return created;
+      return {
+        ...created,
+        displayStatus: resolveChangeRequestStatus(created),
+        changeCount: created._count.changes,
+        canCancel: created.status === "PENDING" && created.requestedById === data.requestedById,
+      };
     });
   } catch (error) {
     if (prismaErrorCode(error) === "P2002") {
-      throw conflict("A pending change request already exists for this attendance entry");
+      // Lost the race against another submission for the same entry: the partial
+      // unique index is the last line of defence, the 409 above is the fast path.
+      throw conflict("This attendance entry already has a request awaiting admin review. Cancel it before submitting another.");
     }
     if (prismaErrorCode(error) === "P2034") {
       throw conflict("Another change request was submitted at the same time. Refresh the attendance entry.");
@@ -648,6 +912,18 @@ type AttendanceChangeRequestReviewItem = {
   requestedById: string;
   reason: string;
   status: ChangeRequestStatus;
+  /**
+   * Status as the teacher must see it. CANCELLATION has no enum value in the
+   * (frozen) `ChangeRequestStatus` schema, so a withdrawn request is stored as
+   * REJECTED + `WITHDRAWN_REQUEST_NOTE` and surfaced here as CANCELLED.
+   */
+  displayStatus: AttendanceRequestDisplayStatus;
+  /** True when this REJECTED row is a teacher cancellation, not an admin rejection. */
+  withdrawn: boolean;
+  /** Number of students affected (mirrors changes.length). */
+  changeCount: number;
+  /** Server-computed "the caller may withdraw this": pending AND own request. */
+  canCancel: boolean;
   reviewedById: string | null;
   reviewedAt: string | null;
   reviewNote: string | null;
@@ -676,11 +952,22 @@ type AttendanceChangeRequestReviewItem = {
 export async function listChangeRequests(opts: {
   status?: ChangeRequestStatus;
   courseOfferingId?: string;
+  sessionId?: string;
+  /**
+   * Hard ownership filter. The API route always sets this for TEACHER callers,
+   * so a teacher can only ever read their own requests (IDOR-safe by
+   * construction rather than by a post-filter).
+   */
+  requestedById?: string;
+  /** Actor used to compute `canCancel`; without it nothing is cancellable. */
+  actorUserId?: string;
   page: number;
   limit: number;
 }) {
   const where: Prisma.AttendanceChangeRequestWhereInput = {};
   if (opts.status) where.status = opts.status;
+  if (opts.requestedById) where.requestedById = opts.requestedById;
+  if (opts.sessionId) where.sessionId = opts.sessionId;
   if (opts.courseOfferingId) where.session = { courseOfferingId: opts.courseOfferingId };
   const [total, rows] = await prisma.$transaction([
     prisma.attendanceChangeRequest.count({ where }),
@@ -731,12 +1018,18 @@ export async function listChangeRequests(opts: {
   const items: AttendanceChangeRequestReviewItem[] = rows.map((row) => {
     const offering = row.session.courseOffering;
     const contextKey = (studentId: string) => `${offering.academicYearId}:${offering.tradeId}:${offering.semesterId}:${offering.shiftId}:${offering.sectionId}:${studentId}`;
+    const displayStatus = resolveChangeRequestStatus(row);
     return {
       id: row.id,
       sessionId: row.sessionId,
       requestedById: row.requestedById,
       reason: row.reason,
       status: row.status,
+      displayStatus,
+      withdrawn: isWithdrawnChangeRequest(row),
+      changeCount: row.changes.length,
+      // Allowed actions are decided here (status + ownership), not in the UI.
+      canCancel: row.status === "PENDING" && Boolean(opts.actorUserId) && row.requestedById === opts.actorUserId,
       reviewedById: row.reviewedById,
       reviewedAt: row.reviewedAt?.toISOString() ?? null,
       reviewNote: row.reviewNote,
@@ -838,6 +1131,104 @@ export async function reviewChangeRequest(id: string, opts: { approve: boolean; 
     }
     throw error;
   }
+}
+
+/**
+ * Withdraw a pending attendance-entry request.
+ *
+ * Rules enforced here (the UI repeats them only for affordance reasons):
+ *   - the request must exist and belong to the acting teacher;
+ *   - only a PENDING request can be withdrawn — an approved or rejected one is
+ *     already an admin decision and must not be rewritten;
+ *   - nothing is deleted. The request row, its `AttendanceChangeRequestItem`
+ *     proposals and every change log stay for auditing.
+ *
+ * Schema limitation (frozen by the task): `ChangeRequestStatus` has no
+ * CANCELLED value, so a cancellation is recorded as REJECTED with the machine
+ * readable `WITHDRAWN_REQUEST_NOTE` marker, which `resolveChangeRequestStatus`
+ * turns back into the CANCELLED display state.
+ *
+ * Concurrency: the status update is a conditional `updateMany` on
+ * `status = "PENDING"`. If an admin approves or rejects in the same instant,
+ * that transaction wins the row lock, our guard matches zero rows, and the
+ * teacher gets a 409 that tells them to look at the decision — the request is
+ * never flipped back to pending and an approval is never undone. Freeing the
+ * pending slot also means a new request for the entry becomes possible.
+ */
+export async function cancelChangeRequest(id: string, opts: { actorUserId: string; note?: string }) {
+  const note = opts.note?.trim();
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const request = await tx.attendanceChangeRequest.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          sessionId: true,
+          requestedById: true,
+          status: true,
+          reason: true,
+          reviewNote: true,
+          _count: { select: { changes: true } },
+        },
+      });
+      if (!request) throw notFound("Change request not found");
+      if (request.requestedById !== opts.actorUserId) {
+        throw forbidden("Only the teacher who submitted this attendance change request can cancel it");
+      }
+      if (request.status !== "PENDING") {
+        throw conflict(
+          request.status === "APPROVED"
+            ? "This request has already been approved, so it can no longer be cancelled."
+            : "This request has already been reviewed, so it can no longer be cancelled.",
+          { requestId: request.id, status: request.status },
+        );
+      }
+
+      const cancelled = await tx.attendanceChangeRequest.updateMany({
+        where: { id, status: "PENDING" },
+        data: {
+          status: "REJECTED",
+          // Marker first so `isWithdrawnChangeRequest` keeps working even when
+          // the teacher added a free-text explanation.
+          reviewNote: note ? `${WITHDRAWN_REQUEST_NOTE} ${note}` : WITHDRAWN_REQUEST_NOTE,
+          reviewedById: opts.actorUserId,
+          reviewedAt: new Date(),
+        },
+      });
+      if (cancelled.count !== 1) {
+        throw conflict("This request was reviewed by an admin while you were cancelling it. Refresh to see the final decision.");
+      }
+
+      return {
+        id: request.id,
+        sessionId: request.sessionId,
+        status: "REJECTED" as const,
+        displayStatus: "CANCELLED" as const,
+        reason: request.reason,
+        changeCount: request._count.changes,
+      };
+    });
+  } catch (error) {
+    if (prismaErrorCode(error) === "P2034") {
+      throw conflict("This request was reviewed concurrently. Refresh to see the final decision.");
+    }
+    throw error;
+  }
+}
+
+/**
+ * Count of the caller's PENDING requests, optionally narrowed to one offering.
+ * Backs the "Pending Update Requests (N)" badge, so the number is always the
+ * database's, never a client-side tally.
+ */
+export async function countPendingChangeRequests(opts: { requestedById?: string; courseOfferingId?: string }) {
+  return prisma.attendanceChangeRequest.count({
+    where: {
+      status: "PENDING",
+      ...(opts.requestedById ? { requestedById: opts.requestedById } : {}),
+      ...(opts.courseOfferingId ? { session: { courseOfferingId: opts.courseOfferingId } } : {}),
+    },
+  });
 }
 
 export type StudentAttendanceSummary = {

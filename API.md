@@ -43,15 +43,15 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | POST | /teacher-assignments/substitute | ADMIN (transactional: closes the current assignment, creates the replacement; rejected for inactive offerings / inactive academic years) |
 | GET/POST | /schedules | scoped / ADMIN |
 | GET | /schedules/history?courseOfferingId= | scoped |
-| GET | /attendance/sessions | scoped teacher+admin; date lookup includes authoritative session permissions/correction capacity |
-
-| POST | /attendance/sessions | assigned TEACHER only; `mode=create` is create-only and returns 409 for a session that appeared concurrently, `mode=edit` applies one direct correction operation |
-| GET | /course-offerings/{id}/attendance/sessions | scoped teacher+admin (paginated, date-filtered, server-side summary + update count) |
-| GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (full section roster + status for one session) |
+| GET | /attendance/sessions?courseOfferingId&date | scoped teacher+admin; returns the whole entry state for Take Attendance (full section roster with the recorded status per student, Present/Absent/Late/Excused summary, `permissions` correction state, `pendingChangeRequest`) or `data: null` when the date has no entry, which is the only condition under which the create form is shown |
+| POST | /attendance/sessions | assigned TEACHER only (ADMIN is read-only for attendance); `mode=create` is create-only and returns 409 for a session that appeared concurrently, `mode=edit` applies the complete multi-student draft as ONE direct correction operation with the optional `reason` recorded in the change log |
+| GET | /course-offerings/{id}/attendance/sessions | scoped teacher+admin (paginated, date-filtered, server-side summary + update count + per-entry `permissions` and `pendingChangeRequest`, so no screen counts corrections itself) |
+| GET | /attendance/sessions/{sessionId}/records | scoped teacher+admin (full ACTIVE section roster + recorded status for one session; students enrolled after the entry was saved appear as `NOT_MARKED`) |
 | GET | /attendance/sessions/{sessionId}/history | scoped teacher+admin (immutable change log + related change requests) |
 | GET | /attendance/records/{id} | scoped teacher+admin |
-| GET | /attendance/change-requests | ADMIN |
-| POST | /attendance/change-requests | assigned TEACHER only; accepts `{sessionId, reason, changes:[{recordId,newStatus}]}` and rejects requests while session correction capacity remains |
+| GET | /attendance/change-requests | ADMIN (all requests) or TEACHER (own requests only — `requestedById` is taken from the session, never from the query). Items include date, offering, submitted time, reason, status and every affected student with `oldStatus -> newStatus`. `meta.pendingCount` is the badge count |
+| POST | /attendance/change-requests | assigned TEACHER only; accepts `{sessionId, reason, changes:[{recordId,newStatus}]}`. Backend-enforced: rejects while direct correction capacity remains, rejects a second request while one is PENDING (409, also on the `one_pending_per_session` unique index under concurrency), validates the reason, the change set and that every record still belongs to the entry |
+| POST | /attendance/change-requests/{id}/cancel | the teacher who filed it, while it is PENDING; 409 when an admin already decided (the admin wins). Nothing is deleted: the row becomes REJECTED with the `Withdrawn by the requesting teacher before admin review.` marker, which the API reports as `displayStatus: "CANCELLED"` |
 | POST | /attendance/change-requests/{id}/approve, .../reject | ADMIN; reviews and applies the complete session-level request atomically |
 | GET/POST | /assessments | scoped |
 | GET/PATCH | /assessments/{id} | scoped |
