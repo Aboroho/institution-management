@@ -9,9 +9,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * - creating a session writes initial logs and does NOT bump updateCount
  * - one edit touching many records bumps updateCount exactly once
- * - a record that exhausted its direct corrections is skipped (reported back)
- *   instead of aborting the whole edit
- * - teacher corrections require a reason
+ * - the session-level correction capacity is authoritative; an exhausted
+ *   session rejects the complete operation rather than partially saving it
+ * - direct correction has no individual-student request/reason control
  * - admins can NEVER take or directly edit attendance (FORBIDDEN) — they act
  *   only through change-request approval, which is the sole admin path
  * - teachers cannot edit sessions older than the edit window, but may create
@@ -61,11 +61,12 @@ function makeFakeDb(opts: { session?: Record<string, unknown> | null; records?: 
 
   const tx = {
     attendanceSession: {
-      findUnique: vi.fn(async ({ where }: { where: { courseOfferingId_attendanceDate: { courseOfferingId: string; attendanceDate: Date } } }) => {
-        const k = where.courseOfferingId_attendanceDate;
+      findUnique: vi.fn(async ({ where }: { where: { courseOfferingId_attendanceDate?: { courseOfferingId: string; attendanceDate: Date }; id?: string } }) => {
         const s = state.session;
+        if (where.id) return s?.id === where.id ? s : null;
+        const k = where.courseOfferingId_attendanceDate;
         if (
-          s &&
+          s && k &&
           s.courseOfferingId === k.courseOfferingId &&
           +new Date(s.attendanceDate as string | Date) === +new Date(k.attendanceDate)
         ) {
@@ -83,6 +84,11 @@ function makeFakeDb(opts: { session?: Record<string, unknown> | null; records?: 
         }
         return state.session;
       }),
+      updateMany: vi.fn(async ({ data }: { where: { updateCount?: { lt: number } }; data: { updateCount?: { increment: number } } }) => {
+        if (!state.session || (data.updateCount?.increment && state.session.updateCount >= 2)) return { count: 0 };
+        if (data.updateCount?.increment) state.session.updateCount += data.updateCount.increment;
+        return { count: 1 };
+      }),
     },
     attendanceRecord: {
       findUnique: vi.fn(async ({ where }: { where: { sessionId_studentId?: { sessionId: string; studentId: string }; id?: string } }) => {
@@ -95,6 +101,8 @@ function makeFakeDb(opts: { session?: Record<string, unknown> | null; records?: 
         }
         return null;
       }),
+      findMany: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) =>
+        [...state.records.values()].filter((record) => where.id.in.includes(record.id))),
       create: vi.fn(async ({ data }: { data: { sessionId: string; studentId: string; status: FakeRecord["status"]; note?: string | null } }) => {
         recSeq += 1;
         const rec: FakeRecord = {
@@ -114,6 +122,12 @@ function makeFakeDb(opts: { session?: Record<string, unknown> | null; records?: 
         Object.assign(rec, data);
         return rec;
       }),
+      updateMany: vi.fn(async ({ where, data }: { where: { id: string; status?: FakeRecord["status"] }; data: Partial<FakeRecord> }) => {
+        const rec = [...state.records.values()].find((r) => r.id === where.id && (!where.status || r.status === where.status));
+        if (!rec) return { count: 0 };
+        Object.assign(rec, data);
+        return { count: 1 };
+      }),
     },
     attendanceChangeLog: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -129,6 +143,12 @@ function makeFakeDb(opts: { session?: Record<string, unknown> | null; records?: 
         if (!req) throw new Error("request not found in fake");
         Object.assign(req, data);
         return req;
+      }),
+      updateMany: vi.fn(async ({ where, data }: { where: { id: string; status: string }; data: Record<string, unknown> }) => {
+        const req = state.changeRequests.get(where.id);
+        if (!req || req.status !== where.status) return { count: 0 };
+        Object.assign(req, data);
+        return { count: 1 };
       }),
     },
   };
@@ -161,6 +181,21 @@ beforeEach(() => {
 });
 
 describe("saveSessionAttendance — session creation", () => {
+  it("rejects a stale create form when the session was recorded concurrently", async () => {
+    makeFakeDb({
+      session: existingSession(0),
+      records: [rec("sess-1", "stu-1", "PRESENT")],
+    });
+
+    await expect(saveSessionAttendance({
+      courseOfferingId: "off-1",
+      attendanceDate: daysAgo(0),
+      mode: "create",
+      records: [{ studentId: "stu-1", status: "ABSENT" }],
+      ...TEACHER,
+    })).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
   it("creates a missing session with initial logs and does not count creation as an update", async () => {
     const { state, tx } = makeFakeDb({ session: null });
 
@@ -202,7 +237,7 @@ describe("saveSessionAttendance — session creation", () => {
 describe("saveSessionAttendance — edits and the update counter", () => {
   it("bumps updateCount exactly once when one edit touches many records", async () => {
     const { state, tx } = makeFakeDb({
-      session: existingSession(1, 2),
+      session: existingSession(1, 1),
       records: [rec("sess-1", "stu-1", "PRESENT"), rec("sess-1", "stu-2", "PRESENT"), rec("sess-1", "stu-3", "PRESENT")],
     });
 
@@ -221,12 +256,12 @@ describe("saveSessionAttendance — edits and the update counter", () => {
     expect(res.isNewSession).toBe(false);
     expect(res.updatedCount).toBe(3);
     expect(res.skipped).toEqual([]);
-    expect(tx.attendanceSession.update).toHaveBeenCalledTimes(1);
-    expect(tx.attendanceSession.update).toHaveBeenCalledWith({
-      where: { id: "sess-1" },
+    expect(tx.attendanceSession.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.attendanceSession.updateMany).toHaveBeenCalledWith({
+      where: { id: "sess-1", updateCount: { lt: 2 } },
       data: { updateCount: { increment: 1 } },
     });
-    expect(state.session?.updateCount).toBe(3);
+    expect(state.session?.updateCount).toBe(2);
   });
 
   it("does not bump updateCount when nothing changed", async () => {
@@ -247,48 +282,41 @@ describe("saveSessionAttendance — edits and the update counter", () => {
     expect(tx.attendanceSession.update).not.toHaveBeenCalled();
   });
 
-  it("requires a reason for teacher corrections", async () => {
-    makeFakeDb({
+  it("allows a direct correction without an individual-student reason box", async () => {
+    const { state } = makeFakeDb({
       session: existingSession(0),
       records: [rec("sess-1", "stu-1", "PRESENT")],
     });
 
-    await expect(
-      saveSessionAttendance({
-        courseOfferingId: "off-1",
-        attendanceDate: daysAgo(0),
-        records: [{ studentId: "stu-1", status: "ABSENT" }],
-        ...TEACHER,
-      }),
-    ).rejects.toMatchObject({ code: "BUSINESS_RULE" });
+    const result = await saveSessionAttendance({
+      courseOfferingId: "off-1",
+      attendanceDate: daysAgo(0),
+      records: [{ studentId: "stu-1", status: "ABSENT" }],
+      ...TEACHER,
+    });
+    expect(result.updatedCount).toBe(1);
+    expect(state.records.get("sess-1:stu-1")?.status).toBe("ABSENT");
   });
 });
 
 describe("saveSessionAttendance — correction limits (partial saves)", () => {
-  it("skips at-limit records and still saves the rest", async () => {
+  it("rejects the complete multi-student operation when session capacity is exhausted", async () => {
     const { tx } = makeFakeDb({
-      session: existingSession(0, 0),
-      records: [rec("sess-1", "stu-1", "PRESENT", 2), rec("sess-1", "stu-2", "PRESENT", 0)],
+      session: existingSession(0, 2),
+      records: [rec("sess-1", "stu-1", "PRESENT", 0), rec("sess-1", "stu-2", "PRESENT", 0)],
     });
 
-    const res = await saveSessionAttendance({
+    await expect(saveSessionAttendance({
       courseOfferingId: "off-1",
       attendanceDate: daysAgo(0),
       records: [
         { studentId: "stu-1", status: "ABSENT" },
         { studentId: "stu-2", status: "ABSENT" },
       ],
-      reason: "Late arrivals verified",
+      reason: "Register correction",
       ...TEACHER,
-    });
-
-    expect(res.updatedCount).toBe(1);
-    expect(res.skipped).toEqual([
-      { recordId: "rec-stu-1", studentId: "stu-1", currentStatus: "PRESENT", reason: "APPROVAL_REQUIRED" },
-    ]);
-    // The allowed correction still landed, and the session counts one update.
-    expect(tx.attendanceRecord.update).toHaveBeenCalledTimes(1);
-    expect(tx.attendanceSession.update).toHaveBeenCalledTimes(1);
+    })).rejects.toMatchObject({ code: "APPROVAL_REQUIRED" });
+    expect(tx.attendanceRecord.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it("rejects admin writes — admins approve change requests instead of editing", async () => {
@@ -371,10 +399,10 @@ describe("reviewChangeRequest — approvals count as session updates", () => {
     });
     state.changeRequests.set("req-1", {
       id: "req-1",
-      recordId: "rec-stu-1",
-      oldStatus: "PRESENT",
-      newStatus: "ABSENT",
+      sessionId: "sess-1",
       status: "PENDING",
+      changes: [{ recordId: "rec-stu-1", oldStatus: "PRESENT", newStatus: "ABSENT" }],
+      reason: "Verified register",
     });
 
     const res = await reviewChangeRequest("req-1", { approve: true, reviewedById: "u-admin" });

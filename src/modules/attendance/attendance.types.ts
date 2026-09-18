@@ -4,6 +4,16 @@
 export const TEACHER_EDIT_WINDOW_DAYS = 7;
 export const TEACHER_DIRECT_CORRECTIONS = 2;
 
+export type AttendanceSessionPermissions = {
+  directCorrectionLimit: number;
+  correctionsUsed: number;
+  correctionCapacityRemaining: number;
+  withinEditWindow: boolean;
+  canDirectCorrect: boolean;
+  canRequestChange: boolean;
+  hasPendingChangeRequest: boolean;
+};
+
 export const DEFAULT_ATTENDANCE_PAGE_SIZE = 20;
 export const MAX_ATTENDANCE_PAGE_SIZE = 100;
 
@@ -65,6 +75,8 @@ export type AttendanceHistoryEntry = {
   timestamp: string;
   changedBy: { id: string; name: string; email: string; role: string };
   changeType: "INITIAL_ENTRY" | "CORRECTION";
+  operationId?: string | null;
+  requestId?: string | null;
   viaApproval: boolean;
   relatedChangeRequest: null | {
     id: string;

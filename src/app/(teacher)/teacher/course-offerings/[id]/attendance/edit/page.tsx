@@ -44,7 +44,7 @@ function Content({ id }: { id: string }) {
       />
       <PageHeader
         title={`Edit Attendance — ${str(course?.title)}`}
-        subtitle={`Section ${str(section?.name)} · Editing date ${date}. Direct modifications are limited; further changes require admin approval.`}
+        subtitle={`Section ${str(section?.name)} · Editing date ${date}. Direct corrections are counted per attendance entry; once capacity is exhausted, submit one approval request for the complete change set.`}
       />
       <CourseOfferingBanner offering={data} eyebrow="Editing attendance for" />
       <AttendanceTakeForm
