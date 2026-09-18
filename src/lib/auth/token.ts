@@ -6,6 +6,13 @@ export interface SessionPayload {
   email: string;
   name: string;
   role: Role;
+  /**
+   * Session epoch (`User.sessionVersion`) the token was issued with. Every credential
+   * or access change increments the stored value, so tokens issued earlier stop
+   * matching and are rejected by `requireAuth` even though they are still signed.
+   * Tokens minted before this field existed are treated as version 0.
+   */
+  sv: number;
 }
 
 const COOKIE_NAME = "ems_session";
@@ -47,8 +54,32 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
       email: String(payload.email),
       name: String(payload.name),
       role: String(payload.role) as Role,
+      sv: Number.isFinite(Number(payload.sv)) ? Number(payload.sv) : 0,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * True when a verified token still belongs to the current state of the account.
+ * Pure and dependency-free so it can be unit tested and reused anywhere a session
+ * is validated (route handlers today, middleware/edge later).
+ */
+export function isSessionCurrent(
+  session: Pick<SessionPayload, "sv">,
+  user: { isActive: boolean; sessionVersion: number },
+): boolean {
+  return user.isActive && (session.sv ?? 0) === user.sessionVersion;
+}
+
+/** Cookie attributes shared by the login and credential-refresh flows. */
+export function sessionCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * Number(process.env.AUTH_TOKEN_TTL_HOURS ?? 12),
+  };
 }

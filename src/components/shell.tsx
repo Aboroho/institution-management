@@ -7,6 +7,7 @@ import {
   LayoutDashboard, GraduationCap, Users, UserCheck, BookOpen, Library, Layers,
   CalendarDays, ClipboardCheck, FileText, Award, Megaphone, Bell, BarChart3,
   ScrollText, Settings, LogOut, Menu, X, ArrowLeftRight, UserPlus, Clock,
+  ShieldCheck, UserCircle,
 } from "lucide-react";
 import { authApi, get } from "@/lib/api/client";
 import { cn } from "@/components/ui";
@@ -37,6 +38,8 @@ const ADMIN_NAV: NavItem[] = [
   { href: "/admin/notices", label: "Notices", icon: <Megaphone size={18} />, group: "Operations" },
   { href: "/admin/notifications", label: "Notifications", icon: <Bell size={18} />, group: "Communication" },
   { href: "/admin/reports", label: "Reports", icon: <BarChart3 size={18} />, group: "Insights" },
+  { href: "/admin/admins", label: "Admin Accounts", icon: <ShieldCheck size={18} />, group: "Administration" },
+  { href: "/admin/profile", label: "My Profile", icon: <UserCircle size={18} />, group: "Administration" },
   { href: "/admin/audit-logs", label: "Audit Logs", icon: <ScrollText size={18} />, group: "Administration" },
   { href: "/admin/settings", label: "Settings", icon: <Settings size={18} />, group: "Administration" },
 ];
@@ -47,6 +50,7 @@ const TEACHER_NAV: NavItem[] = [
   { href: "/teacher/schedule", label: "Schedule", icon: <CalendarDays size={18} /> },
   { href: "/teacher/notices", label: "Notices", icon: <Megaphone size={18} /> },
   { href: "/teacher/notifications", label: "Notifications", icon: <Bell size={18} /> },
+  { href: "/teacher/profile", label: "My Profile", icon: <UserCircle size={18} /> },
 ];
 
 const STUDENT_NAV: NavItem[] = [
@@ -58,6 +62,7 @@ const STUDENT_NAV: NavItem[] = [
   { href: "/student/marks", label: "Marks", icon: <Award size={18} /> },
   { href: "/student/notices", label: "Notices", icon: <Megaphone size={18} /> },
   { href: "/student/notifications", label: "Notifications", icon: <Bell size={18} /> },
+  { href: "/student/profile", label: "My Profile", icon: <UserCircle size={18} /> },
 ];
 
 export function AppShell({ role, children }: { role: "ADMIN" | "TEACHER" | "STUDENT"; children: React.ReactNode }) {
@@ -77,6 +82,7 @@ export function AppShell({ role, children }: { role: "ADMIN" | "TEACHER" | "STUD
   }
   const unread = Number((notifMeta as Record<string, unknown> | undefined)?.unreadCount ?? 0);
   const notifHref = role === "ADMIN" ? "/admin/notifications" : role === "TEACHER" ? "/teacher/notifications" : "/student/notifications";
+  const profileHref = role === "ADMIN" ? "/admin/profile" : role === "TEACHER" ? "/teacher/profile" : "/student/profile";
 
   async function logout() {
     await authApi.logout();
@@ -138,7 +144,9 @@ export function AppShell({ role, children }: { role: "ADMIN" | "TEACHER" | "STUD
                 <Bell size={20} />
                 {unread > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">{unread}</span>}
               </Link>
-              <span className="text-sm font-medium text-slate-700">{me?.name}</span>
+              <Link href={profileHref} className="rounded-lg px-2 py-1 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                {me?.name}
+              </Link>
               <button onClick={logout} className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-slate-500 hover:bg-slate-100">
                 <LogOut size={16} /> Logout
               </button>
@@ -146,7 +154,7 @@ export function AppShell({ role, children }: { role: "ADMIN" | "TEACHER" | "STUD
           </header>
           {/* Mobile user row */}
           <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
-            <span className="text-sm font-medium text-slate-700">{me?.name}</span>
+            <Link href={profileHref} className="text-sm font-medium text-slate-700 hover:text-brand-700">{me?.name}</Link>
             <button onClick={logout} className="flex items-center gap-1 text-sm text-slate-500"><LogOut size={16} /> Logout</button>
           </div>
           <main className="mx-auto w-full max-w-7xl p-4 lg:p-6">{children}</main>

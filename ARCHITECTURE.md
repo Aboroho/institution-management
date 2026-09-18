@@ -108,6 +108,50 @@ by the API to top-level keys; row-specific inline validation for bulk workflows
 requires a backwards-compatible issue-path API addition. Avoid guessing field
 assignments for business conflicts that have no structured field details.
 
+## Profile, Password & Admin Accounts (2026-09-18)
+
+Self-service account management for STUDENT, TEACHER and ADMIN plus the protected seed
+admin flow, added without touching the existing login/session contract.
+
+```
+UI  /{admin|teacher|student}/profile  ·  /admin/admins
+      -> centralized client (profileApi, adminUsersApi)
+      -> API   /api/v1/users/me [GET, PATCH]
+               /api/v1/users/me/change-password [POST]
+               /api/v1/admin/users [GET, POST] · /api/v1/admin/users/{userId} [DELETE]
+      -> modules/users: users.service.ts, admin-accounts.service.ts, seed-admin.ts
+      -> Prisma -> PostgreSQL (User.isProtectedSeedAdmin, User.sessionVersion)
+```
+
+- **Ownership by shape.** Every self-service endpoint takes the user id from the session
+  (`requireAuth`), never from the path or body, so no request can address another
+  account. Services still re-check the account state (active, protected) on the row they
+  are about to write.
+- **Protected seed admin.** `User.isProtectedSeedAdmin` replaces "the email in .env" as
+  the identity: the seed script writes it once (idempotently), a partial unique index
+  allows at most one such row, and no request schema accepts the field. Guards live in
+  `seed-admin.ts` and are consulted by the services; the UI only reflects them.
+- **Sessions.** Tokens embed the `User.sessionVersion` (`sv`) they were issued with.
+  Password changes and admin removal increment it, so previously issued tokens stop
+  validating immediately; the caller is re-issued a cookie at the same time.
+- **Admin management.** Reading the user/admin list keeps the existing ADMIN policy;
+  creating and deleting admin accounts is restricted to the protected seed admin.
+  Deletion of an account with history deactivates it instead (same pattern as student
+  accounts), which preserves audit attribution and referential integrity.
+- **Password policy** lives in `src/lib/validation/common.ts` and is used by both request
+  schemas and the frontend forms, so client and server cannot drift.
+
+Verification (local sandbox — no Docker/PostgreSQL, `binaries.prisma.sh` unreachable so
+Prisma engine downloads fail): `npm run typecheck`, `npm run lint` and `npm run build`
+pass; `npm run test` passes (30 files / 373 tests, 16 DB-backed tests skipped). The new
+migration was replayed against an embedded PostgreSQL (PGlite) — all migrations apply in
+order, both `User` columns and the partial unique index exist, and a second protected
+seed admin is rejected by the index. Browser E2E could not run (Playwright browsers
+cannot be downloaded in this environment, and there is no PostgreSQL to seed), so the
+route guards were verified with an HTTP smoke test instead: the four new portal pages
+redirect unauthenticated visitors to `/login`, and all six API endpoints answer 401
+without a session.
+
 ## Reporting & Export Architecture (2026-09-17)
 
 The reporting system provides attendance and marks reporting with dedicated browser

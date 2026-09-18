@@ -3,7 +3,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Loader2, AlertTriangle, Inbox, ChevronLeft, ChevronRight, ChevronDown, Search, Check } from "lucide-react";
+import { Loader2, AlertTriangle, Inbox, ChevronLeft, ChevronRight, ChevronDown, Search, Check, Eye, EyeOff } from "lucide-react";
 
 export const cn = (...xs: (string | false | null | undefined)[]) => twMerge(clsx(xs));
 
@@ -65,6 +65,34 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   ),
 );
 Input.displayName = "Input";
+
+/**
+ * Password field with a show/hide toggle.
+ *
+ * The toggle is a real button (keyboard reachable, `aria-pressed`, named for screen
+ * readers) and never changes the submitted value — only how it is rendered.
+ */
+export const PasswordInput = React.forwardRef<
+  HTMLInputElement,
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">
+>(({ className, ...props }, ref) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input ref={ref} type={visible ? "text" : "password"} className={cn("pr-11", className)} {...props} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-pressed={visible}
+        aria-label={visible ? "Hide password" : "Show password"}
+        className="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-3 text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+      >
+        {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
+  );
+});
+PasswordInput.displayName = "PasswordInput";
 
 export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, ...props }, ref) => (

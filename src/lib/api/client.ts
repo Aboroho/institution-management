@@ -59,5 +59,52 @@ export const authApi = {
   logout: () => post("/auth/logout"),
 };
 
+export interface MyProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT";
+  isActive: boolean;
+  /** Persisted marker of the protected seed admin; read-only, set by the seed script. */
+  isProtectedSeedAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+  student: { id: string; studentId: string } | null;
+  teacher: { id: string; employeeId: string } | null;
+}
+
+export interface AdminAccountSummary {
+  id: string;
+  email: string;
+  name: string;
+  role: "ADMIN";
+  isActive: boolean;
+  isProtectedSeedAdmin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRemovalSummary {
+  mode: "deleted" | "deactivated";
+  user: { id: string; email: string; name: string };
+  preservedHistory: string[];
+}
+
+// Own profile: the endpoints never take a user id, so the client cannot ask for
+// somebody else's profile.
+export const profileApi = {
+  me: () => get<MyProfile>("/users/me"),
+  update: (body: { name: string; email: string }) =>
+    patch<{ user: MyProfile; emailChanged: boolean; sessionRefreshed: boolean }>("/users/me", body),
+  changePassword: (body: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
+    post<{ changed: boolean; sessionVersion: number }>("/users/me/change-password", body),
+};
+
+export const adminUsersApi = {
+  list: (params: { search?: string; page?: number; limit?: number } = {}) => get<AdminAccountSummary[]>(`/admin/users${qs(params)}`),
+  create: (body: { name: string; email: string; password: string }) => post<AdminAccountSummary>("/admin/users", body),
+  remove: (userId: string) => del<AdminRemovalSummary>(`/admin/users/${userId}`),
+};
+
 export const buildList = (resource: string) => (params: Record<string, string | number | undefined | null> = {}) =>
   get<unknown[]>(`/${resource}${qs(params)}`);
