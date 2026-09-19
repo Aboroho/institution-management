@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, get, patchForm, postForm } from "@/lib/api/client";
+import { buildNoticePayload, type NoticeTargetKind } from "@/lib/notices/composer-payload";
 import {
   Badge,
   Button,
@@ -17,7 +18,7 @@ import { Paperclip, Search, Upload, X } from "lucide-react";
 import useSWR from "swr";
 
 export type NoticeComposerRole = "ADMIN" | "TEACHER";
-export type NoticeTargetKind = "EVERYONE" | "ADMINS" | "COURSE_OFFERING" | "TEACHER" | "STUDENT";
+export type { NoticeTargetKind };
 
 interface PersonOption {
   id: string;
@@ -271,17 +272,18 @@ export function NoticeComposer({ open, role, initial, onClose, onSaved }: Notice
     if (selections.length === 0) { setError("Select at least one recipient target."); return; }
     setSaving(true);
     try {
+      const draft = { title, content, expiresAt, targets: payloadTargets() };
+      const editingId = isEdit && initial?.id ? initial.id : null;
+      // The API's create and update schemas are strict: only send `expectedVersion`
+      // and `removeAttachmentIds` when editing an existing notice.
+      const payload = buildNoticePayload(
+        draft,
+        editingId ? { version: initial?.version ?? 1, removeAttachmentIds: removedAttachmentIds } : null,
+      );
       const form = new FormData();
-      form.append("payload", JSON.stringify({
-        title: title.trim(),
-        content: content.trim(),
-        expiresAt: expiresAt || null,
-        targets: payloadTargets(),
-        expectedVersion: initial?.version,
-        removeAttachmentIds: removedAttachmentIds,
-      }));
+      form.append("payload", JSON.stringify(payload));
       for (const file of newFiles) form.append("files", file);
-      if (isEdit && initial?.id) await patchForm(`/notices/${initial.id}`, form);
+      if (editingId) await patchForm(`/notices/${editingId}`, form);
       else await postForm("/notices", form);
       await onSaved();
       onClose();
