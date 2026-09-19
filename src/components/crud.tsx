@@ -9,8 +9,9 @@ import useSWR from "swr";
 import { Plus, Pencil, Search } from "lucide-react";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import {
-  Button, Input, Select, Textarea, Label, FieldError, Table, Badge,
-  PageHeader, Pagination, LoadingSkeleton, EmptyState, ErrorState, Dialog, Spinner,
+  Button, Input, Select, Textarea, Label, FieldError, Table, IconButton,
+  PageHeader, Pagination, TableSkeleton, EmptyState, ErrorState, Dialog,
+  InlineLoading, StatusMessage, HelpHint,
 } from "@/components/ui";
 
 export interface Field {
@@ -83,10 +84,21 @@ export function CrudPage(props: Props) {
   }, [search]);
 
   const query = useMemo(() => qs({ page, limit: 25, search: debounced || undefined, ...props.defaultParams, ...filterVals }), [page, debounced, props.defaultParams, filterVals]);
-  const { data, error, isLoading, mutate } = useSWR(`${props.resource}${query}`, () => get<Record<string, unknown>[]>(`/${props.resource}${query}`));
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    `${props.resource}${query}`,
+    () => get<Record<string, unknown>[]>(`/${props.resource}${query}`),
+    // Keep the previous page on screen while the next one loads: replacing a
+    // populated table with a skeleton on every filter change is what made the
+    // list screens feel like they were reloading the whole app.
+    { keepPreviousData: true },
+  );
   const items = (data?.data ?? []) as Record<string, unknown>[];
   const meta = (data?.meta ?? {}) as { total?: number; page?: number; limit?: number };
   const total = Number(meta.total ?? items.length);
+  const initialLoading = isLoading && !data;
+  const refreshing = (isValidating && !initialLoading) || search !== debounced;
+  const filtersActive = Boolean(search) || Object.values(filterVals).some(Boolean);
+  const [saved, setSaved] = useState("");
 
   function openCreate() {
     const defaults = getFilterDefaults(filterVals, {
@@ -131,9 +143,11 @@ export function CrudPage(props: Props) {
         if (f.type === "number") v = Number(v);
         payload[f.name] = v;
       }
-      if (dialog?.mode === "create") await post(`/${props.resource}`, payload);
+      const creating = dialog?.mode === "create";
+      if (creating) await post(`/${props.resource}`, payload);
       else if (dialog?.mode === "edit") await patch(`/${props.resource}/${dialog.row.id}`, payload);
       setDialog(null);
+      setSaved(creating ? "Record created." : "Changes saved.");
       await mutate();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -150,10 +164,17 @@ export function CrudPage(props: Props) {
         title={props.title} subtitle={props.subtitle}
         actions={<Button onClick={openCreate}><Plus size={16} /> New</Button>}
       />
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative min-w-[220px] flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={props.searchPlaceholder ?? "Search..."} className="pl-9" />
+          <Search size={16} aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={props.searchPlaceholder ?? "Search..."}
+            aria-label={`Search ${props.title.toLowerCase()}`}
+            className="pl-9"
+          />
         </div>
         {(props.filters ?? []).map((f) => (
           <Select
@@ -165,15 +186,31 @@ export function CrudPage(props: Props) {
             {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
         ))}
+        {filtersActive && (
+          <Button variant="outline" size="sm" onClick={() => { setSearch(""); setFilterVals({}); setPage(1); }}>Clear</Button>
+        )}
+        {/* Feedback for search and filter changes sits next to the controls that
+            caused them, not over the whole table. */}
+        {refreshing && !initialLoading && <InlineLoading label="Updating…" />}
       </div>
 
-      {isLoading ? <LoadingSkeleton /> : error ? (
+      {saved && <StatusMessage tone="success" onDismiss={() => setSaved("")}>{saved}</StatusMessage>}
+
+      {initialLoading ? (
+        <TableSkeleton columns={props.columns.length + (props.badge ? 2 : 1)} rows={6} label={`Loading ${props.title.toLowerCase()}`} />
+      ) : error ? (
         <ErrorState message={error instanceof ApiError ? error.message : "Failed to load"} onRetry={() => mutate()} />
       ) : items.length === 0 ? (
-        <EmptyState title={`No ${props.title.toLowerCase()} found`} hint="Create the first record to get started." action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
+        <EmptyState
+          title={filtersActive ? `No matching ${props.title.toLowerCase()}` : `No ${props.title.toLowerCase()} found`}
+          hint={filtersActive ? "Try a different search or clear the filters." : "Create the first record to get started."}
+          action={filtersActive
+            ? <Button variant="outline" onClick={() => { setSearch(""); setFilterVals({}); setPage(1); }}>Clear filters</Button>
+            : <Button onClick={openCreate}><Plus size={16} aria-hidden="true" /> New</Button>}
+        />
       ) : (
         <>
-          <Table headers={[...props.columns.map((c) => c.header), ...(props.badge ? ["Status"] : []), "Actions"]}>
+          <Table busy={refreshing} headers={[...props.columns.map((c) => c.header), ...(props.badge ? ["Status"] : []), "Actions"]}>
             {items.map((row) => (
               <tr key={String(row.id)} className="hover:bg-slate-50">
                 {props.columns.map((c) => (
@@ -191,22 +228,32 @@ export function CrudPage(props: Props) {
                 ))}
                 {props.badge && <td className="px-4 py-3">{props.badge(row)}</td>}
                 <td className="px-4 py-3">
-                  <Button variant="ghost" onClick={() => openEdit(row)} aria-label="Edit"><Pencil size={16} /></Button>
+                  <IconButton
+                    label={`Edit ${String(val(row, props.columns[0].key) ?? "record")}`}
+                    tooltip="Edit this record"
+                    icon={<Pencil size={16} aria-hidden="true" />}
+                    onClick={() => openEdit(row)}
+                  />
                 </td>
               </tr>
             ))}
           </Table>
-          <Pagination page={page} limit={25} total={total} onPage={setPage} />
+          <Pagination page={page} limit={25} total={total} onPage={setPage} busy={refreshing} />
         </>
       )}
 
       <Dialog open={dialog !== null} title={dialog?.mode === "create" ? (props.createTitle ?? `New ${props.title}`) : (props.editTitle ?? `Edit`)} onClose={() => { if (!saving) setDialog(null); }}>
         <form ref={formRef} noValidate onSubmit={(e) => { e.preventDefault(); void save(); }} className="space-y-4">
-          <FieldError error={formError} />
+          {formError && <StatusMessage tone="error" className="mb-0">{formError}</StatusMessage>}
           <fieldset disabled={saving} className="space-y-4">
           {visibleFields.map((f) => (
             <div key={f.name}>
-              <Label htmlFor={`${formId}-${f.name}`} required={f.required}>{f.label}</Label>
+              <span className="mb-1 flex items-center gap-1.5">
+                <Label htmlFor={`${formId}-${f.name}`} required={f.required}>{f.label}</Label>
+                {/* Helper text becomes a tooltip: the explanation stays available
+                    without a paragraph under every field. */}
+                {f.helper && <span className="-mt-1"><HelpHint>{f.helper}</HelpHint></span>}
+              </span>
               {f.type === "select" ? (
                 <Select {...inputProps(f)} value={String(form[f.name] ?? "")} onChange={(e) => updateField(f.name, e.target.value)}>
                   <option value="">Select...</option>
@@ -225,13 +272,15 @@ export function CrudPage(props: Props) {
                 />
               )}
               <FieldError id={`${formId}-${f.name}-error`} error={fieldErrors[f.name]?.join(" ")} />
-              {f.helper && <p id={`${formId}-${f.name}-help`} className="mt-1 text-xs text-slate-500">{f.helper}</p>}
+              {/* The helper stays in the accessibility tree for the tooltip's
+                  `aria-describedby` without repeating it visually. */}
+              {f.helper && <span id={`${formId}-${f.name}-help`} className="sr-only">{f.helper}</span>}
             </div>
           ))}
           </fieldset>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <Button type="button" disabled={saving} variant="secondary" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button type="submit" loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </form>
       </Dialog>

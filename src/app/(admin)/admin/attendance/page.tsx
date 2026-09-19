@@ -2,7 +2,7 @@
 import { Suspense, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { get, post, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, Input, Table, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, StatusBadge, Tabs } from "@/components/ui";
+import { PageHeader, Button, Card, Input, Table, CardListSkeleton, EmptyState, ErrorState, Breadcrumbs, StatusBadge, StatusMessage, Tabs, Tooltip } from "@/components/ui";
 import { AdminAttendanceBrowser } from "@/components/attendance/admin-attendance-browser";
 import { CourseOfferingCell } from "@/components/course-offering-context";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -40,6 +40,11 @@ function AttendanceContent() {
   // "Take Attendance" tab here. Approvals handle teacher change requests.
   const [tab, setTab] = useState(qp.get("tab") === "approvals" ? "approvals" : "sessions");
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  // Keyed by request id so only the row being reviewed shows a busy state, and
+  // a second click on the same request cannot submit a duplicate decision.
+  const [reviewing, setReviewing] = useState<{ id: string; approve: boolean } | null>(null);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewDone, setReviewDone] = useState("");
 
   const { data: reqData, error: rErr, isLoading: rLoad, mutate: rMut } = useSWR(
     tab === "approvals" ? "att-reqs-pending" : null,
@@ -47,6 +52,10 @@ function AttendanceContent() {
   );
 
   async function review(id: string, approve: boolean) {
+    if (reviewing) return;
+    setReviewing({ id, approve });
+    setReviewError("");
+    setReviewDone("");
     try {
       await post(`/attendance/change-requests/${id}/${approve ? "approve" : "reject"}`, {
         reviewNote: reviewNotes[id]?.trim() || undefined,
@@ -61,7 +70,12 @@ function AttendanceContent() {
         undefined,
         { revalidate: true },
       );
-    } catch (e) { alert(e instanceof ApiError ? e.message : "Review failed"); }
+      setReviewDone(approve ? "Change request approved. The attendance entry has been updated." : "Change request rejected.");
+    } catch (e) {
+      setReviewError(e instanceof ApiError ? e.message : "The review could not be saved. Please try again.");
+    } finally {
+      setReviewing(null);
+    }
   }
 
   return (
@@ -80,7 +94,10 @@ function AttendanceContent() {
       {tab === "sessions" && <AdminAttendanceBrowser />}
 
       {tab === "approvals" && (
-        rLoad ? <LoadingSkeleton /> : rErr ? <ErrorState message="Failed to load requests" onRetry={() => rMut()} /> : (reqData?.data ?? []).length === 0 ? <EmptyState title="No pending requests" /> : (
+        <>
+        {reviewError && <StatusMessage tone="error" onDismiss={() => setReviewError("")}>{reviewError}</StatusMessage>}
+        {reviewDone && <StatusMessage tone="success" onDismiss={() => setReviewDone("")}>{reviewDone}</StatusMessage>}
+        {rLoad ? <CardListSkeleton count={2} lines={5} label="Loading change requests" /> : rErr ? <ErrorState message="Failed to load requests" onRetry={() => rMut()} /> : (reqData?.data ?? []).length === 0 ? <EmptyState title="No pending requests" hint="Teacher attendance corrections that need approval will appear here." /> : (
           <div className="space-y-4">
             {(reqData?.data ?? []).map((request) => {
               const session = request.session as Row | undefined;
@@ -128,14 +145,34 @@ function AttendanceContent() {
                         className="mt-1"
                       />
                     </label>
-                    <Button onClick={() => review(str(request.id), true)}>Approve all changes</Button>
-                    <Button variant="danger" onClick={() => review(str(request.id), false)}>Reject request</Button>
+                    <Tooltip content="Applies every proposed status in this request to the attendance entry.">
+                      <Button
+                        loading={reviewing?.id === str(request.id) && reviewing.approve}
+                        loadingText="Approving…"
+                        disabled={Boolean(reviewing) && reviewing?.id !== str(request.id)}
+                        onClick={() => void review(str(request.id), true)}
+                      >
+                        Approve all changes
+                      </Button>
+                    </Tooltip>
+                    <Tooltip content="Keeps the attendance entry as it is; the teacher is notified.">
+                      <Button
+                        variant="danger"
+                        loading={reviewing?.id === str(request.id) && !reviewing.approve}
+                        loadingText="Rejecting…"
+                        disabled={Boolean(reviewing) && reviewing?.id !== str(request.id)}
+                        onClick={() => void review(str(request.id), false)}
+                      >
+                        Reject request
+                      </Button>
+                    </Tooltip>
                   </div>
                 </Card>
               );
             })}
           </div>
-        )
+        )}
+        </>
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Input, Pagination, Breadcrumbs, Dialog, Card } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Input, Pagination, Breadcrumbs, Dialog, Card } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -28,7 +28,7 @@ export default function AuditLogsPage() {
         <Input type="date" value={f.from ?? ""} onChange={(e) => { setF({ ...f, from: e.target.value }); setPage(1); }} aria-label="From" />
         <Input type="date" value={f.to ?? ""} onChange={(e) => { setF({ ...f, to: e.target.value }); setPage(1); }} aria-label="To" />
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load audit logs" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No audit logs" /> : (
+      {isLoading ? <TableSkeleton columns={6} rows={6} label="Loading audit logs" /> : error ? <ErrorState message="Failed to load audit logs" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No audit logs" /> : (
         <>
           <Table headers={["Date", "Actor", "Action", "Entity", "Entity ID", "Detail"]}>
             {items.map((a) => (

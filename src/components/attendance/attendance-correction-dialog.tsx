@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Button, Dialog, FieldError, Spinner, Textarea, cn } from "@/components/ui";
+import { Button, Dialog, FieldError, Textarea, cn } from "@/components/ui";
 import { AlertTriangle, CheckCircle2, Send, ShieldCheck } from "lucide-react";
 import { AttendanceChangeList, AttendanceChangeTotals } from "./attendance-change-list";
 import type { ProposedAttendanceChange } from "@/modules/attendance/attendance-corrections";
@@ -167,13 +167,16 @@ export function AttendanceCorrectionDialog({
             <Button variant="secondary" size="sm" onClick={requestClose} disabled={submitting}>
               Cancel
             </Button>
-            <Button size="sm" onClick={confirm} disabled={!canConfirm}>
-              {submitting && <Spinner />}
-              {submitting
-                ? mode === "request" ? "Submitting…" : "Saving…"
-                : mode === "request"
-                  ? `Submit ${affected} change${affected === 1 ? "" : "s"} for approval`
-                  : `Save ${affected} correction${affected === 1 ? "" : "s"}`}
+            <Button
+              size="sm"
+              onClick={() => void confirm()}
+              disabled={!canConfirm}
+              loading={submitting}
+              loadingText={mode === "request" ? "Submitting…" : "Saving…"}
+            >
+              {mode === "request"
+                ? `Submit ${affected} change${affected === 1 ? "" : "s"} for approval`
+                : `Save ${affected} correction${affected === 1 ? "" : "s"}`}
             </Button>
           </div>
         </div>

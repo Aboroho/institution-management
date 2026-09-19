@@ -28,7 +28,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
-  Badge, Button, buttonClass, Card, EmptyState, ErrorState, LoadingSkeleton, Spinner, cn,
+  Badge, Button, buttonClass, Card, EmptyState, ErrorState, CardListSkeleton, Spinner, cn,
 } from "@/components/ui";
 import {
   Ban, Check, ChevronLeft, ChevronRight, ClipboardList, Clock3, History, PencilLine, Save,
@@ -299,7 +299,7 @@ export function AttendanceTakeForm({
     await mutateEntry();
   }, [mutateEntry]);
 
-  if (offeringLoading && !resolvedOffering) return <LoadingSkeleton rows={4} />;
+  if (offeringLoading && !resolvedOffering) return <CardListSkeleton count={2} lines={4} label="Loading course offering" />;
   if (offeringError && !resolvedOffering) return <ErrorState message="Failed to load course offering" />;
   if (entryError) return <ErrorState message="Failed to load attendance for this date" onRetry={() => mutateEntry()} />;
 
@@ -326,7 +326,7 @@ export function AttendanceTakeForm({
       )}
 
       {view === "loading" ? (
-        <LoadingSkeleton rows={4} />
+        <CardListSkeleton count={3} lines={4} label="Loading attendance roster" />
       ) : view === "create" || !entry ? (
         <NewAttendanceSession
           students={createStudents}

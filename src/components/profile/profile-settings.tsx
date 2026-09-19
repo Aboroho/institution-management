@@ -11,7 +11,7 @@ import { validationDetails } from "@/lib/validation/form-errors";
 import { changeOwnPasswordSchema, updateOwnProfileSchema } from "@/lib/validation/user";
 import {
   Badge, Breadcrumbs, Button, Card, ErrorState, FieldError, Input, Label,
-  LoadingSkeleton, PageHeader, PasswordInput, Spinner,
+  FormSkeleton, PageHeader, PasswordInput,
 } from "@/components/ui";
 
 type ProfileForm = z.infer<typeof updateOwnProfileSchema>;
@@ -36,7 +36,7 @@ export function ProfileSettings({ portal }: { portal: "admin" | "teacher" | "stu
     return (
       <>
         <PageHeader title="My Profile" subtitle="Manage your account details and password." />
-        <LoadingSkeleton rows={4} />
+        <FormSkeleton fields={5} />
       </>
     );
   }
@@ -188,8 +188,8 @@ function ProfileCard({
           Your role, account status and the classes/records linked to this account are managed by the
           institution and cannot be changed here.
         </p>
-        <Button type="submit" disabled={isSubmitting || !isDirty}>
-          {isSubmitting && <Spinner />} Save changes
+        <Button type="submit" loading={isSubmitting} loadingText="Saving…" disabled={!isDirty}>
+          Save changes
         </Button>
       </form>
       {status && (
@@ -281,8 +281,8 @@ function PasswordCard({ onChanged }: { onChanged: () => Promise<void> }) {
           <Lock size={14} className="mt-0.5 shrink-0" aria-hidden />
           Changing your password signs out every other device that is using this account.
         </p>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting && <Spinner />} Change password
+        <Button type="submit" loading={isSubmitting} loadingText="Updating…">
+          Change password
         </Button>
       </form>
       {status && (

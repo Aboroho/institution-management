@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts } from "@/components/academic-options";
 import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 import Link from "next/link";
 
@@ -75,7 +75,7 @@ export default function SectionsPage() {
           <option value="">All shifts</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load sections" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={8} rows={6} label="Loading sections" /> : error ? <ErrorState message="Failed to load sections" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No sections" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
@@ -118,7 +118,7 @@ export default function SectionsPage() {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>

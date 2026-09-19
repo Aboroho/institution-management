@@ -310,60 +310,193 @@ function assertNoticeAuthor(auth: AuthContext) {
   }
 }
 
+/**
+ * The course offerings the author may address.
+ *
+ * Admins reach every active offering of an active academic year; teachers reach
+ * only offerings they hold an ACTIVE assignment on. This is the single source of
+ * the offering scope — both the recipient search and `resolveTargets` rely on
+ * the same rule, so the picker can never offer something the write path rejects.
+ */
+function authorOfferingWhere(teacher: { id: string } | null): Prisma.CourseOfferingWhereInput {
+  return {
+    isActive: true,
+    academicYear: { isActive: true },
+    ...(teacher ? { assignments: { some: { teacherId: teacher.id, isActive: true } } } : {}),
+  };
+}
+
+async function authorStudentWhere(teacher: { id: string } | null): Promise<Prisma.StudentWhereInput> {
+  const base: Prisma.StudentWhereInput = { isActive: true, user: { isActive: true, role: "STUDENT" } };
+  if (!teacher) return base;
+  // A teacher may only address students enrolled in the academic context of an
+  // offering they are actively assigned to.
+  const offerings = await prisma.courseOffering.findMany({
+    where: authorOfferingWhere(teacher),
+    select: { academicYearId: true, tradeId: true, semesterId: true, shiftId: true, sectionId: true },
+  });
+  if (offerings.length === 0) return { id: { in: [] } };
+  return {
+    ...base,
+    enrollments: { some: { status: "ACTIVE", OR: offerings.map((offering) => contextWhere(offering)) } },
+  };
+}
+
+export type NoticeRecipientKind = "COURSE_OFFERING" | "TEACHER" | "STUDENT";
+
+export interface NoticeRecipientOption {
+  id: string;
+  label: string;
+  hint?: string;
+}
+
+function offeringLabel(offering: {
+  course: { title: string };
+  trade: { code: string };
+  semester: { name: string };
+  shift: { name: string };
+  section: { name: string };
+  academicYear: { name: string };
+}): string {
+  return `${offering.course.title} — ${offering.trade.code} · ${offering.semester.name} · ${offering.shift.name} · Sec ${offering.section.name} · ${offering.academicYear.name}`;
+}
+
+/**
+ * One page of authorized recipient options matching `query`.
+ *
+ * Paginated on purpose: the previous implementation sent every student and every
+ * offering in a single response, which the composer then rendered in full. The
+ * authorization rules are unchanged — only the amount of data crossing the wire
+ * is. Selected ids are still re-validated by `resolveTargets` on save, so a
+ * client that ignores this endpoint gains nothing.
+ */
+export async function searchNoticeRecipients(opts: {
+  auth: AuthContext;
+  kind: NoticeRecipientKind;
+  query?: string;
+  page: number;
+  limit: number;
+}): Promise<{ items: NoticeRecipientOption[]; total: number }> {
+  assertNoticeAuthor(opts.auth);
+  const teacher = await activeTeacherForAuth(opts.auth);
+  const search = opts.query?.trim() || undefined;
+  const skip = (opts.page - 1) * opts.limit;
+
+  if (opts.kind === "COURSE_OFFERING") {
+    const where: Prisma.CourseOfferingWhereInput = authorOfferingWhere(teacher);
+    if (search) {
+      where.OR = [
+        { course: { title: { contains: search, mode: "insensitive" } } },
+        { course: { code: { contains: search, mode: "insensitive" } } },
+        { section: { name: { contains: search, mode: "insensitive" } } },
+        { trade: { name: { contains: search, mode: "insensitive" } } },
+        { trade: { code: { contains: search, mode: "insensitive" } } },
+        { semester: { name: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+    const [total, rows] = await prisma.$transaction([
+      prisma.courseOffering.count({ where }),
+      prisma.courseOffering.findMany({
+        where,
+        include: offeringInclude,
+        orderBy: [{ academicYear: { startDate: "desc" } }, { course: { title: "asc" } }],
+        skip,
+        take: opts.limit,
+      }),
+    ]);
+    return {
+      total,
+      items: rows.map((offering) => ({
+        id: offering.id,
+        label: offeringLabel(offering),
+        hint: offering.course.code,
+      })),
+    };
+  }
+
+  if (opts.kind === "TEACHER") {
+    // Only admins may address individual teachers (mirrors `assertTargetRole`).
+    if (opts.auth.role !== "ADMIN") throw forbidden("You cannot use this recipient target");
+    const where: Prisma.TeacherWhereInput = { isActive: true, user: { isActive: true, role: "TEACHER" } };
+    if (search) {
+      where.OR = [
+        { employeeId: { contains: search, mode: "insensitive" } },
+        { user: { name: { contains: search, mode: "insensitive" } } },
+        { user: { email: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+    const [total, rows] = await prisma.$transaction([
+      prisma.teacher.count({ where }),
+      prisma.teacher.findMany({
+        where,
+        include: { user: { select: { name: true, email: true } } },
+        orderBy: { user: { name: "asc" } },
+        skip,
+        take: opts.limit,
+      }),
+    ]);
+    return {
+      total,
+      items: rows.map((row) => ({ id: row.id, label: `${row.employeeId} — ${row.user.name}`, hint: row.user.email })),
+    };
+  }
+
+  const where = await authorStudentWhere(teacher);
+  if (search) {
+    where.OR = [
+      { studentId: { contains: search, mode: "insensitive" } },
+      { user: { name: { contains: search, mode: "insensitive" } } },
+      { user: { email: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+  const [total, rows] = await prisma.$transaction([
+    prisma.student.count({ where }),
+    prisma.student.findMany({
+      where,
+      include: { user: { select: { name: true, email: true } } },
+      orderBy: { user: { name: "asc" } },
+      skip,
+      take: opts.limit,
+    }),
+  ]);
+  return {
+    total,
+    items: rows.map((row) => ({ id: row.id, label: `${row.studentId} — ${row.user.name}`, hint: row.user.email })),
+  };
+}
+
+/**
+ * What the author is allowed to target, and how many records each category
+ * holds. Deliberately free of the option lists themselves — the composer loads
+ * those page by page through `searchNoticeRecipients`.
+ */
 export async function listEligibleNoticeRecipients(auth: AuthContext) {
   assertNoticeAuthor(auth);
   const teacher = await activeTeacherForAuth(auth);
-  const offerings = teacher
-    ? await prisma.courseOffering.findMany({
-        where: {
-          isActive: true,
-          academicYear: { isActive: true },
-          assignments: { some: { teacherId: teacher.id, isActive: true } },
-        },
-        include: offeringInclude,
-        orderBy: [{ academicYear: { startDate: "desc" } }, { course: { title: "asc" } }],
-      })
-    : await prisma.courseOffering.findMany({
-        where: { isActive: true, academicYear: { isActive: true } },
-        include: offeringInclude,
-        orderBy: [{ academicYear: { startDate: "desc" } }, { course: { title: "asc" } }],
-      });
-
-  const studentWhere: Prisma.StudentWhereInput = teacher
-    ? offerings.length === 0
-      ? { id: { in: [] } }
-      : {
-          isActive: true,
-          user: { isActive: true, role: "STUDENT" },
-          enrollments: {
-            some: {
-              status: "ACTIVE",
-              OR: offerings.map((offering) => contextWhere(offering)),
-            },
-          },
-        }
-    : { isActive: true, user: { isActive: true, role: "STUDENT" } };
-  const students = await prisma.student.findMany({
-    where: studentWhere,
-    include: { user: { select: { name: true, email: true } } },
-    orderBy: { user: { name: "asc" } },
-  });
-
-  const teachers = auth.role === "ADMIN"
-    ? await prisma.teacher.findMany({
-        where: { isActive: true, user: { isActive: true, role: "TEACHER" } },
-        include: { user: { select: { name: true, email: true } } },
-        orderBy: { user: { name: "asc" } },
-      })
-    : [];
+  const studentWhere = await authorStudentWhere(teacher);
+  const [offeringCount, studentCount, teacherCount] = await Promise.all([
+    prisma.courseOffering.count({ where: authorOfferingWhere(teacher) }),
+    prisma.student.count({ where: studentWhere }),
+    auth.role === "ADMIN"
+      ? prisma.teacher.count({ where: { isActive: true, user: { isActive: true, role: "TEACHER" } } })
+      : Promise.resolve(0),
+  ]);
 
   return {
     canTargetEveryone: auth.role === "ADMIN",
     canTargetAdmins: auth.role === "TEACHER",
-    offerings,
-    teachers,
-    students,
+    canTargetTeachers: auth.role === "ADMIN",
+    counts: { offerings: offeringCount, students: studentCount, teachers: teacherCount },
   };
+}
+
+/** Human labels for ids already attached to a notice (used when editing). */
+export async function describeNoticeTargetIds(
+  auth: AuthContext,
+  targets: { targetType: NoticeTargetKind; targetId: string }[],
+) {
+  assertNoticeAuthor(auth);
+  return describeNoticeTargets(targets);
 }
 
 export async function listNoticesForViewer(opts: {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useCourses, useActiveCurriculum } from "@/components/academic-options";
 import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { TeacherAssignmentActions } from "@/components/teacher-assignment";
 import { offeringAvailable } from "@/lib/course-offering-context";
 import { Plus } from "lucide-react";
@@ -77,7 +77,7 @@ export default function OfferingsPage() {
         <Select value={f.sectionId ?? ""} onChange={(e) => setFilter("sectionId", e.target.value)} aria-label="Section"><option value="">All sections</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <SearchableSelect options={courses} value={f.courseId ?? ""} onChange={(v) => setFilter("courseId", v)} ariaLabel="Course" clearLabel="All courses" placeholder="All courses" />
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={5} rows={6} label="Loading course offerings" /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No course offerings" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <>
@@ -139,7 +139,7 @@ export default function OfferingsPage() {
         <FieldError error={formError} />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !canPickCourse || !form.courseId}>{saving && <Spinner />} Save</Button>
+          <Button onClick={save}  loading={saving} loadingText="Saving…" disabled={saving || !canPickCourse || !form.courseId}>Save</Button>
         </div>
       </Dialog>
     </div>

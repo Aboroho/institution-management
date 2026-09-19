@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, SearchableSelect, Label, Breadcrumbs, Card, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, SearchableSelect, Label, Breadcrumbs, Card, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -26,7 +26,7 @@ export default function MarksReportPage() {
         </div>
       </Card>
       {!run ? <EmptyState title="Run the report to see results" /> :
-        isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Report failed" onRetry={() => mutate()} /> : rows.length === 0 ? <EmptyState title="No marks found" /> : (
+        isLoading ? <TableSkeleton columns={7} rows={6} label="Loading marks report" /> : error ? <ErrorState message="Report failed" onRetry={() => mutate()} /> : rows.length === 0 ? <EmptyState title="No marks found" /> : (
         <Table headers={["Student", "Course", "Assessment", "Mark", "Total", "%", "Result"]}>
           {rows.map((r, i) => (
             <tr key={i} className="hover:bg-slate-50">

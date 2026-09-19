@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, ApiError } from "@/lib/api/client";
 import {
-  PageHeader, Button, Card, Table, LoadingSkeleton, EmptyState, ErrorState,
+  PageHeader, Button, Card, Table, DetailSkeleton, TableSkeleton, EmptyState, ErrorState,
   Breadcrumbs, Tabs, Badge, StatusBadge, Dialog, Input, Select, Textarea,
   Label, FieldError, Spinner,
 } from "@/components/ui";
@@ -20,7 +20,7 @@ export default function TeacherOfferingDetail({ params }: { params: { id: string
   const [tab, setTab] = useState("overview");
   const { data, error, isLoading, mutate } = useSWR(`t-off-${params.id}`, () => get<Row>(`/course-offerings/${params.id}`).then((r) => r.data));
 
-  if (isLoading) return <><PageHeader title="Course" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Course" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Course" /><ErrorState message={error instanceof ApiError ? error.message : "Failed to load"} onRetry={() => mutate()} /></>;
 
   return (
@@ -174,7 +174,7 @@ function AssessmentsTab({ offeringId }: { offeringId: string }) {
   return (
     <div>
       <div className="mb-4 flex justify-end"><Button onClick={() => setDialog(true)}><Plus size={16} /> New assessment</Button></div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={9} rows={5} label="Loading assessments" /> : error ? <ErrorState message="Failed to load" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No assessments" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New assessment</Button>} />
       ) : (
         <Table headers={["Title", "Type", "Total", "Pass", "Due", "Submitable", "Counts", "Submissions", "Marks"]}>
@@ -208,7 +208,7 @@ function AssessmentsTab({ offeringId }: { offeringId: string }) {
         <FieldError error={formError} />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+          <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
         </div>
       </Dialog>
     </div>
@@ -272,7 +272,7 @@ function MarksTab({ offeringId, students }: { offeringId: string; students: Row[
         {msg && <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-700">{msg}</p>}
         {err && <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">{err}</p>}
       </Card>
-      {!assessmentId ? <EmptyState title="Select an assessment" /> : isLoading ? <LoadingSkeleton /> : (
+      {!assessmentId ? <EmptyState title="Select an assessment" hint="Choose an assessment above to enter or review marks." /> : isLoading ? <TableSkeleton columns={7} rows={6} label="Loading student marks" /> : (
         <>
           <Table headers={["Roll", "Student ID", "Name", "Current", `Enter (max ${assessment ? str(assessment.totalMarks) : ""})`, "Corrections left", "Actions"]}>
             {students.map((s) => {
@@ -299,7 +299,7 @@ function MarksTab({ offeringId, students }: { offeringId: string; students: Row[
               );
             })}
           </Table>
-          <div className="mt-3 flex justify-end"><Button onClick={save} disabled={saving}>{saving && <Spinner />} Save marks</Button></div>
+          <div className="mt-3 flex justify-end"><Button onClick={save}  loading={saving} loadingText="Saving…">Save marks</Button></div>
         </>
       )}
       <HistoryDialog title="Mark history" kind="marks" markId={historyMark} onClose={() => setHistoryMark(null)} />
@@ -310,7 +310,7 @@ function MarksTab({ offeringId, students }: { offeringId: string; students: Row[
           <div><Label required>Reason</Label><Textarea value={reqReason} onChange={(e) => setReqReason(e.target.value)} /></div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setReqMark(null)}>Cancel</Button>
-            <Button onClick={submitRequest} disabled={saving || !reqVal || !reqReason.trim()}>{saving && <Spinner />} Submit request</Button>
+            <Button onClick={submitRequest}  loading={saving} loadingText="Submitting…" disabled={saving || !reqVal || !reqReason.trim()}>Submit request</Button>
           </div>
         </div>
       </Dialog>
@@ -345,7 +345,7 @@ function NoticesTab({ offeringId }: { offeringId: string }) {
   return (
     <div>
       <div className="mb-4 flex justify-end"><Button onClick={() => setComposerOpen(true)}><Plus size={16} /> New notice</Button></div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={5} rows={5} label="Loading change requests" /> : error ? <ErrorState message="Failed to load" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No notices" action={<Button onClick={() => setComposerOpen(true)}><Plus size={16} /> New notice</Button>} />
       ) : (
         <div className="space-y-2">

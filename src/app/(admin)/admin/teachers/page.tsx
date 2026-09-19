@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get, post, qs, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, Input, Label, FieldError, Spinner, Pagination, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus, Search } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -41,7 +41,7 @@ export default function TeachersPage() {
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search by ID, name or email..." className="pl-9" />
         </div>
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load teachers" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={5} rows={6} label="Loading teachers" /> : error ? <ErrorState message="Failed to load teachers" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No teachers" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New teacher</Button>} />
       ) : (
         <>
@@ -72,7 +72,7 @@ export default function TeachersPage() {
         <FieldError error={formError} />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+          <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
         </div>
       </Dialog>
     </div>

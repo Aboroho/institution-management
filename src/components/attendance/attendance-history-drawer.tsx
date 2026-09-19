@@ -3,7 +3,7 @@
 /** Session-scoped immutable attendance history, grouped by correction operation. */
 
 import useSWR from "swr";
-import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Badge } from "@/components/ui";
+import { Dialog, TableSkeleton, ErrorState, EmptyState, Table, StatusBadge, Badge } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import type { AttendanceHistoryEntry, AttendanceHistoryPayload } from "@/modules/attendance/attendance.types";
@@ -35,7 +35,7 @@ export function AttendanceHistoryDrawer({
   return (
     <Dialog open={open} title="Attendance History" wide onClose={onClose}>
       {isLoading ? (
-        <LoadingSkeleton />
+        <TableSkeleton columns={9} rows={4} label="Loading correction history" />
       ) : error ? (
         <ErrorState message="Failed to load history" />
       ) : !data ? (

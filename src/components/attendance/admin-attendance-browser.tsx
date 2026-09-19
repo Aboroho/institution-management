@@ -31,7 +31,7 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import {
-  Card, Label, SearchableSelect, EmptyState, LoadingSkeleton, ErrorState, type SelectOption,
+  Card, Label, SearchableSelect, EmptyState, CardSkeleton, CardListSkeleton, ErrorState, type SelectOption,
 } from "@/components/ui";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
 import { AttendanceReportList } from "./attendance-report-list";
@@ -284,7 +284,7 @@ export function AdminAttendanceBrowser() {
           hint="Choose the academic context above, then pick a course offering to inspect its attendance sessions."
         />
       ) : offeringDetail.isLoading ? (
-        <LoadingSkeleton rows={4} />
+        <><CardSkeleton lines={3} /><CardListSkeleton count={3} lines={3} label="Loading attendance sessions" /></>
       ) : offeringDetail.error || !detail ? (
         <ErrorState message="Failed to load course offering" onRetry={() => offeringDetail.mutate()} />
       ) : (

@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs } from "@/components/ui";
+import { PageHeader, Card, Table, CardListSkeleton, EmptyState, ErrorState, Breadcrumbs } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -14,7 +14,7 @@ export default function StudentSchedule() {
     <div>
       <Breadcrumbs items={[{ label: "Student", href: "/student/dashboard" }, { label: "Schedule" }]} />
       <PageHeader title="My Schedule" subtitle="Weekly timetable for your current courses." />
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load schedule" onRetry={() => mutate()} /> : versions.length === 0 ? <EmptyState title="No scheduled classes" /> : (
+      {isLoading ? <CardListSkeleton count={2} lines={5} label="Loading schedule" /> : error ? <ErrorState message="Failed to load schedule" onRetry={() => mutate()} /> : versions.length === 0 ? <EmptyState title="No scheduled classes" /> : (
         <div className="space-y-3">
           {versions.map((v) => (
             <Card key={str(v.id)} className="p-4">

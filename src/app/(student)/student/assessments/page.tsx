@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { PageHeader, Card, CardListSkeleton, EmptyState, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -32,7 +32,7 @@ export default function StudentAssessments() {
       <Breadcrumbs items={[{ label: "Student", href: "/student/dashboard" }, { label: "Assessments" }]} />
       <PageHeader title="My Assessments" />
       <Tabs tabs={[{ id: "upcoming", label: "Upcoming" }, { id: "submitted", label: "Submitted" }, { id: "pastdue", label: "Past due" }, { id: "graded", label: "Graded" }, { id: "all", label: "All" }]} active={tab} onChange={setTab} />
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load assessments" onRetry={() => mutate()} /> : filtered.length === 0 ? <EmptyState title="Nothing here" /> : (
+      {isLoading ? <CardListSkeleton count={3} lines={4} label="Loading assessments" /> : error ? <ErrorState message="Failed to load assessments" onRetry={() => mutate()} /> : filtered.length === 0 ? <EmptyState title="Nothing here" /> : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {filtered.map(({ a, submitted, mark }) => (
             <Link key={str(a.id)} href={`/student/assessments/${a.id}`}>

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { validationDetails } from "@/lib/validation/form-errors";
 import { authApi, ApiError } from "@/lib/api/client";
-import { Button, Card, Input, Label, FieldError, Spinner } from "@/components/ui";
+import { Button, Card, Input, Label, FieldError } from "@/components/ui";
 
 const schema = z.object({ email: z.string().email("Enter a valid email"), password: z.string().min(1, "Password is required") });
 type Form = z.infer<typeof schema>;
@@ -67,8 +67,8 @@ function LoginForm() {
             <FieldError id="login-password-error" error={errors.password?.message} />
           </div>
           {serverError && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">{serverError}</p>}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting && <Spinner />} Sign in
+          <Button type="submit" loading={isSubmitting} loadingText="Signing in…" className="w-full">
+            Sign in
           </Button>
         </form>
       </Card>

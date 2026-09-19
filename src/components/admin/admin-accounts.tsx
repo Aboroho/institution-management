@@ -10,7 +10,7 @@ import { validationDetails } from "@/lib/validation/form-errors";
 import { createAdminAccountSchema } from "@/lib/validation/user";
 import {
   Badge, Breadcrumbs, Button, Card, Dialog, EmptyState, ErrorState, FieldError, Input, Label,
-  LoadingSkeleton, PageHeader, Pagination, PasswordInput, Spinner, Table,
+  TableSkeleton, PageHeader, Pagination, PasswordInput, Table,
 } from "@/components/ui";
 
 type CreateAdminForm = z.infer<typeof createAdminAccountSchema>;
@@ -89,7 +89,7 @@ export default function AdminAccountsPage() {
       </Card>
 
       {isLoading ? (
-        <LoadingSkeleton rows={4} />
+        <TableSkeleton columns={5} rows={5} label="Loading admin accounts" />
       ) : error ? (
         <ErrorState message="We couldn't load admin accounts." onRetry={() => mutate()} />
       ) : admins.length === 0 ? (
@@ -254,8 +254,8 @@ function CreateAdminDialog({
         {formError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Spinner />} Create admin
+          <Button type="submit" loading={isSubmitting} loadingText="Creating…">
+            Create admin
           </Button>
         </div>
       </form>
@@ -304,8 +304,8 @@ function DeleteAdminDialog({
           {formError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
-            <Button type="button" variant="danger" onClick={confirm} disabled={busy}>
-              {busy && <Spinner />} Delete account
+            <Button type="button" variant="danger" onClick={() => void confirm()} loading={busy} loadingText="Deleting…">
+              Delete account
             </Button>
           </div>
         </div>

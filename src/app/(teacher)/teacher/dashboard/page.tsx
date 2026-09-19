@@ -3,7 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { BookOpen, CalendarDays, FileText, Megaphone } from "lucide-react";
 import { get, authApi } from "@/lib/api/client";
-import { PageHeader, StatCard, Card, LoadingSkeleton, ErrorState, Badge } from "@/components/ui";
+import { PageHeader, StatCard, Card, DashboardSkeleton, ErrorState, Badge } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { offeringContextCode } from "@/lib/course-offering-context";
 
@@ -13,7 +13,7 @@ const str = (v: unknown) => String(v ?? "");
 export default function TeacherDashboard() {
   const { data: me } = useSWR("me", () => authApi.me().then((r) => r.data));
   const { data, error, isLoading, mutate } = useSWR("teacher-dash", () => get<Row>("/reports/teacher-dashboard").then((r) => r.data));
-  if (isLoading) return <><PageHeader title="Dashboard" /><LoadingSkeleton rows={6} /></>;
+  if (isLoading) return <><PageHeader title="Dashboard" /><DashboardSkeleton stats={4} panels={2} /></>;
   if (error || !data) return <><PageHeader title="Dashboard" /><ErrorState message="Failed to load dashboard" onRetry={() => mutate()} /></>;
   const assignments = (data.assignments as Row[] | undefined) ?? [];
   const upcoming = assignments.flatMap((a) => ((a.courseOffering as Row)?.assessments as Row[] | undefined ?? []).map((x): Row => ({ ...x, course: str(((a.courseOffering as Row)?.course as Row)?.title), offeringId: str((a.courseOffering as Row)?.id) }))).slice(0, 5);

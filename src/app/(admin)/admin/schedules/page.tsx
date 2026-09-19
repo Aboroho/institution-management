@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, useOfferings } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Card } from "@/components/ui";
+import { PageHeader, Button, Table, CardListSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Card } from "@/components/ui";
 import { Plus, Trash2 } from "lucide-react";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 
@@ -56,7 +56,7 @@ export default function SchedulesPage() {
         <Select value={f.shiftId ?? ""} onChange={(e) => setFilter("shiftId", e.target.value)} aria-label="Shift"><option value="">All shifts</option>{shifts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.sectionId ?? ""} onChange={(e) => setFilter("sectionId", e.target.value)} aria-label="Section"><option value="">All sections</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load schedules" onRetry={() => mutate()} /> : versions.length === 0 ? (
+      {isLoading ? <CardListSkeleton count={2} lines={5} label="Loading schedules" /> : error ? <ErrorState message="Failed to load schedules" onRetry={() => mutate()} /> : versions.length === 0 ? (
         <EmptyState title="No schedules" action={<Button onClick={() => setDialog(true)}><Plus size={16} /> New version</Button>} />
       ) : (
         <div className="space-y-4">
@@ -103,7 +103,7 @@ export default function SchedulesPage() {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>

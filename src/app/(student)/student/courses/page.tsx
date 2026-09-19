@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, LoadingSkeleton, ErrorState, Breadcrumbs, EmptyState } from "@/components/ui";
+import { PageHeader, Card, CardListSkeleton, ErrorState, Breadcrumbs, EmptyState } from "@/components/ui";
 import { offeringContextCode } from "@/lib/course-offering-context";
 
 type Row = Record<string, unknown>;
@@ -19,7 +19,7 @@ export default function StudentCourses() {
     <div>
       <Breadcrumbs items={[{ label: "Student", href: "/student/dashboard" }, { label: "My Courses" }]} />
       <PageHeader title="My Courses" subtitle="Courses from your current enrollment." />
-      {gLoad ? <LoadingSkeleton /> : gErr ? <ErrorState message="Failed to load courses" /> : items.length === 0 ? <EmptyState title="No courses" hint="You have no active enrollment." /> : (
+      {gLoad ? <CardListSkeleton count={3} lines={3} label="Loading courses" /> : gErr ? <ErrorState message="Failed to load courses" /> : items.length === 0 ? <EmptyState title="No courses" hint="You have no active enrollment." /> : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((g) => (
             <Card key={str((g.offering as Row)?.id)} className="p-5">

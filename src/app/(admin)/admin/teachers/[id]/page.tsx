@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get, patch, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
+import { PageHeader, Button, Card, Table, DetailSkeleton, ErrorState, Breadcrumbs, Tabs, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
 import { Pencil } from "lucide-react";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 
@@ -32,7 +32,7 @@ export default function TeacherDetail({ params }: { params: { id: string } }) {
     finally { setSaving(false); }
   }
 
-  if (isLoading) return <><PageHeader title="Teacher" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Teacher" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Teacher" /><ErrorState message="Failed to load teacher" onRetry={() => mutate()} /></>;
 
   const assignments = (data.assignments as Row[] | undefined) ?? [];
@@ -92,7 +92,7 @@ export default function TeacherDetail({ params }: { params: { id: string } }) {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>

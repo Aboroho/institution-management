@@ -3,7 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { Users, UserCheck, Layers, BookOpen, ClipboardCheck, Hourglass, Award } from "lucide-react";
 import { get } from "@/lib/api/client";
-import { PageHeader, StatCard, Card, LoadingSkeleton, ErrorState, StatusBadge } from "@/components/ui";
+import { PageHeader, StatCard, Card, DashboardSkeleton, ErrorState, StatusBadge } from "@/components/ui";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 interface Dashboard {
@@ -18,7 +18,7 @@ interface Dashboard {
 export default function AdminDashboard() {
   const { data, error, isLoading, mutate } = useSWR("admin-dashboard", () => get<Dashboard>("/reports/dashboard").then((r) => r.data));
 
-  if (isLoading) return <><PageHeader title="Dashboard" /><LoadingSkeleton rows={8} /></>;
+  if (isLoading) return <><PageHeader title="Dashboard" /><DashboardSkeleton stats={4} panels={2} /></>;
   if (error || !data) return <><PageHeader title="Dashboard" /><ErrorState message="Failed to load dashboard" onRetry={() => mutate()} /></>;
 
   return (

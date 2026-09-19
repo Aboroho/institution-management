@@ -3,7 +3,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { BookOpen, ClipboardCheck, FileText, Megaphone } from "lucide-react";
 import { get, authApi } from "@/lib/api/client";
-import { PageHeader, StatCard, Card, LoadingSkeleton, ErrorState, Badge } from "@/components/ui";
+import { PageHeader, StatCard, Card, DashboardSkeleton, ErrorState, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -14,7 +14,7 @@ export default function StudentDashboard() {
   const { data: assessments } = useSWR("st-dash-assess", () => get<Row[]>("/assessments?limit=100").then((r) => r.data));
   const { data: notices } = useSWR("st-dash-not", () => get<Row[]>("/notices?limit=5").then((r) => r.data));
 
-  if (isLoading) return <><PageHeader title="Dashboard" /><LoadingSkeleton rows={6} /></>;
+  if (isLoading) return <><PageHeader title="Dashboard" /><DashboardSkeleton stats={4} panels={2} /></>;
   if (error || !data) return <><PageHeader title="Dashboard" /><ErrorState message="Failed to load dashboard" onRetry={() => mutate()} /></>;
 
   const att = (data.attendance as Row) ?? {};

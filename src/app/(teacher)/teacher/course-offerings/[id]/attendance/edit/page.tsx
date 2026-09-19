@@ -1,7 +1,7 @@
 "use client";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Breadcrumbs, PageHeader, LoadingSkeleton, ErrorState } from "@/components/ui";
+import { Breadcrumbs, PageHeader, CardListSkeleton, ErrorState } from "@/components/ui";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
 import { AttendanceTakeForm } from "@/components/attendance/attendance-take-form";
@@ -12,7 +12,7 @@ const str = (v: unknown) => String(v ?? "");
 
 export default function TeacherEditAttendancePage({ params }: { params: { id: string } }) {
   return (
-    <Suspense fallback={<LoadingSkeleton rows={4} />}>
+    <Suspense fallback={<CardListSkeleton count={3} lines={4} label="Loading attendance" />}>
       <Content id={params.id} />
     </Suspense>
   );
@@ -26,7 +26,7 @@ function Content({ id }: { id: string }) {
     get<Row>(`/course-offerings/${id}`).then((r) => r.data),
   );
 
-  if (isLoading) return <LoadingSkeleton rows={4} />;
+  if (isLoading) return <CardListSkeleton count={3} lines={4} label="Loading attendance" />;
   if (error || !data) return <ErrorState message="Failed to load course offering" />;
 
   const course = data.course as Row | undefined;

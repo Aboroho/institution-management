@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, authApi } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, EmptyState, Tabs } from "@/components/ui";
+import { PageHeader, Card, Table, TableSkeleton, ErrorState, Breadcrumbs, EmptyState, Tabs } from "@/components/ui";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { StudentAttendanceReportView } from "@/components/reporting/student-attendance-report-view";
 
@@ -30,7 +30,7 @@ export default function StudentAttendance() {
       />
 
       {tab === "overview" && (
-        isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load attendance" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No attendance records yet" /> : (
+        isLoading ? <TableSkeleton columns={7} rows={6} label="Loading attendance" /> : error ? <ErrorState message="Failed to load attendance" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No attendance records yet" /> : (
           <>
             <Card className="mb-4 p-5">
               <h2 className="mb-4 font-semibold">Attendance by course (%)</h2>

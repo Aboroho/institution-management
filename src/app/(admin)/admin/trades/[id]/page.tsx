@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { PageHeader, Card, Table, DetailSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -11,7 +11,7 @@ const str = (v: unknown) => String(v ?? "");
 export default function TradeDetail({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState("overview");
   const { data, error, isLoading, mutate } = useSWR(`trade-${params.id}`, () => get<Row>(`/trades/${params.id}`).then((r) => r.data));
-  if (isLoading) return <><PageHeader title="Trade" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Trade" /><DetailSkeleton fields={4} /></>;
   if (error || !data) return <><PageHeader title="Trade" /><ErrorState message="Failed to load trade" onRetry={() => mutate()} /></>;
 
   const semesters = (data.semesters as Row[] | undefined) ?? [];

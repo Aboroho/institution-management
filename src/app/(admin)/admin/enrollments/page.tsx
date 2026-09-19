@@ -4,7 +4,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { get, post, patch, qs, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections, searchStudentOptions } from "@/components/academic-options";
 import { getFilterDefaults, applyDependentChange, applyFilterChange } from "@/components/filter-defaults";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Select, SearchableSelect, Label, FieldError, Spinner, Pagination, Breadcrumbs, StatusBadge, Input } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, ConfirmDialog, Select, SearchableSelect, Label, FieldError, Pagination, Breadcrumbs, StatusBadge, StatusMessage, Tooltip, Input } from "@/components/ui";
 import { validateFields, validationDetails, rollNumberIssue, ROLL_MAX } from "@/lib/validation/form-errors";
 import { Plus, Pencil } from "lucide-react";
 
@@ -40,6 +40,10 @@ export default function EnrollmentsPage() {
   const formBodyRef = useRef<HTMLDivElement>(null);
 
   const [rollTarget, setRollTarget] = useState<Row | null>(null);
+  const [closeTarget, setCloseTarget] = useState<{ row: Row; status: "WITHDRAWN" | "TRANSFERRED" } | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState("");
+  const [notice, setNotice] = useState("");
   const [rollValue, setRollValue] = useState("");
   const [rollError, setRollError] = useState("");
   const [rollSaving, setRollSaving] = useState(false);
@@ -143,10 +147,19 @@ export default function EnrollmentsPage() {
     } finally { setSaving(false); }
   }
 
-  async function close(id: string, status: "WITHDRAWN" | "TRANSFERRED") {
-    if (!confirm(`Mark this enrollment as ${status}? History is preserved.`)) return;
-    await post(`/enrollments/${id}/close`, { status });
-    await mutate();
+  // Closing an enrollment is irreversible from this screen, and the old native
+  // confirm() discarded any error the request returned.
+  async function closeEnrollment() {
+    if (!closeTarget) return;
+    setClosing(true); setCloseError("");
+    try {
+      await post(`/enrollments/${str(closeTarget.row.id)}/close`, { status: closeTarget.status });
+      setCloseTarget(null);
+      setNotice(`Enrollment marked as ${closeTarget.status.toLowerCase()}.`);
+      await mutate();
+    } catch (e) {
+      setCloseError(e instanceof ApiError ? e.message : "The enrollment could not be closed. Please try again.");
+    } finally { setClosing(false); }
   }
 
   function openRollEdit(row: Row) {
@@ -187,7 +200,8 @@ export default function EnrollmentsPage() {
         <Select value={f.semesterId ?? ""} onChange={(e) => setFilter("semesterId", e.target.value)} aria-label="Semester"><option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select>
         <Select value={f.status ?? ""} onChange={(e) => setFilter("status", e.target.value)} aria-label="Status"><option value="">All statuses</option>{["ACTIVE", "PROMOTED", "FAILED", "REPEATING", "COMPLETED", "WITHDRAWN", "TRANSFERRED"].map((s) => <option key={s} value={s}>{s}</option>)}</Select>
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load enrollments" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {notice && <StatusMessage tone="success" onDismiss={() => setNotice("")}>{notice}</StatusMessage>}
+      {isLoading ? <TableSkeleton columns={6} rows={6} label="Loading enrollments" /> : error ? <ErrorState message="Failed to load enrollments" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No enrollments" action={<Button onClick={openDialog}><Plus size={16} /> Enroll student</Button>} />
       ) : (
         <>
@@ -201,11 +215,23 @@ export default function EnrollmentsPage() {
                 <td className="px-4 py-3"><StatusBadge status={str(r.status)} /></td>
                 <td className="px-4 py-3">
                   <span className="flex flex-wrap gap-1">
-                    <Button variant="outline" onClick={() => openRollEdit(r)}><Pencil size={14} /> Roll</Button>
+                    <Tooltip content="Change this student's roll number within their section.">
+                      <Button variant="outline" size="sm" onClick={() => openRollEdit(r)}>
+                        <Pencil size={14} aria-hidden="true" /> Roll
+                      </Button>
+                    </Tooltip>
                     {str(r.status) === "ACTIVE" ? (
                       <>
-                        <Button variant="outline" onClick={() => close(str(r.id), "WITHDRAWN")}>Withdraw</Button>
-                        <Button variant="outline" onClick={() => close(str(r.id), "TRANSFERRED")}>Transfer</Button>
+                        <Tooltip content="The student leaves this enrollment. Marks and attendance already recorded are kept.">
+                          <Button variant="outline" size="sm" onClick={() => { setCloseError(""); setCloseTarget({ row: r, status: "WITHDRAWN" }); }}>
+                            Withdraw
+                          </Button>
+                        </Tooltip>
+                        <Tooltip content="Closes this enrollment as a transfer. Enroll the student separately in their new context.">
+                          <Button variant="outline" size="sm" onClick={() => { setCloseError(""); setCloseTarget({ row: r, status: "TRANSFERRED" }); }}>
+                            Transfer
+                          </Button>
+                        </Tooltip>
                       </>
                     ) : <span className="self-center text-sm text-slate-400">Closed</span>}
                   </span>
@@ -262,10 +288,10 @@ export default function EnrollmentsPage() {
               <FieldError id="enrollment-roll-number-error" error={fieldErrors.rollNumber?.[0]} />
             </div>
           </div>
-          <FieldError error={formError} />
+          {formError && <StatusMessage tone="error" className="mb-0">{formError}</StatusMessage>}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button variant="secondary" disabled={saving} onClick={() => setDialog(false)}>Cancel</Button>
+            <Button onClick={() => void save()} loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>
@@ -282,11 +308,27 @@ export default function EnrollmentsPage() {
             <FieldError error={rollError} />
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setRollTarget(null)}>Cancel</Button>
-            <Button onClick={saveRoll} disabled={rollSaving}>{rollSaving && <Spinner />} Save</Button>
+            <Button variant="secondary" disabled={rollSaving} onClick={() => setRollTarget(null)}>Cancel</Button>
+            <Button onClick={() => void saveRoll()} loading={rollSaving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>
+
+      <ConfirmDialog
+        open={closeTarget !== null}
+        title={closeTarget?.status === "TRANSFERRED" ? "Mark enrollment as transferred?" : "Withdraw this enrollment?"}
+        message={
+          closeTarget
+            ? `${str(((closeTarget.row.student as Row)?.user as Row)?.name)} (roll ${str(closeTarget.row.rollNumber)}) will be closed as ${closeTarget.status.toLowerCase()}. Recorded attendance and marks are preserved, and the student stops appearing in active rosters. This cannot be undone from this screen.`
+            : ""
+        }
+        confirmLabel={closeTarget?.status === "TRANSFERRED" ? "Mark as transferred" : "Withdraw enrollment"}
+        tone="danger"
+        busy={closing}
+        error={closeError}
+        onConfirm={closeEnrollment}
+        onClose={() => { if (!closing) { setCloseTarget(null); setCloseError(""); } }}
+      />
     </div>
   );
 }

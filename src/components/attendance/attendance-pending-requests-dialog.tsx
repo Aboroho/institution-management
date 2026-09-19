@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 import {
-  Badge, Button, Card, Dialog, EmptyState, ErrorState, LoadingSkeleton, Spinner, Textarea, cn,
+  Badge, Button, Card, Dialog, EmptyState, ErrorState, CardListSkeleton, Textarea, cn,
 } from "@/components/ui";
 import { Ban, Clock3, Inbox } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
@@ -82,7 +82,7 @@ export function AttendancePendingRequestsDialog({
         </div>
 
         {isLoading && items.length === 0 ? (
-          <LoadingSkeleton rows={3} />
+          <CardListSkeleton count={2} lines={4} label="Loading pending requests" />
         ) : error ? (
           <ErrorState message="Could not load your attendance update requests." onRetry={() => mutate()} />
         ) : items.length === 0 ? (
@@ -279,8 +279,8 @@ function RequestCard({ request, onDone }: { request: AttendanceChangeRequestRow;
               <Button variant="secondary" size="sm" onClick={() => { setConfirming(false); setNote(""); }} disabled={busy}>
                 Keep request
               </Button>
-              <Button variant="danger" size="sm" onClick={confirmCancel} disabled={busy}>
-                {busy && <Spinner />} {busy ? "Cancelling…" : "Confirm cancel request"}
+              <Button variant="danger" size="sm" onClick={() => void confirmCancel()} loading={busy} loadingText="Cancelling…">
+                Confirm cancel request
               </Button>
             </div>
           </div>

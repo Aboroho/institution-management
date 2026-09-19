@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { PageHeader, Card, Table, DetailSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -11,7 +11,7 @@ const str = (v: unknown) => String(v ?? "");
 export default function CourseDetail({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState("overview");
   const { data, error, isLoading, mutate } = useSWR(`course-${params.id}`, () => get<Row>(`/courses/${params.id}`).then((r) => r.data));
-  if (isLoading) return <><PageHeader title="Course" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Course" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Course" /><ErrorState message="Failed to load course" onRetry={() => mutate()} /></>;
 
   const curricula = (data.curriculumCourses as Row[] | undefined) ?? [];

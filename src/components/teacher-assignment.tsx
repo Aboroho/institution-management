@@ -113,7 +113,7 @@ export function AssignTeacherDialog({
         <FieldError error={error} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !teacherId}>{saving && <Spinner />} Assign Teacher</Button>
+          <Button onClick={save}  loading={saving} loadingText="Working…" disabled={saving || !teacherId}>Assign Teacher</Button>
         </div>
       </div>
     </Dialog>
@@ -211,7 +211,7 @@ export function SubstituteDialog({
         <FieldError error={error} />
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !teacherId}>{saving && <Spinner />} Confirm substitution</Button>
+          <Button onClick={save}  loading={saving} loadingText="Working…" disabled={saving || !teacherId}>Confirm substitution</Button>
         </div>
       </div>
     </Dialog>

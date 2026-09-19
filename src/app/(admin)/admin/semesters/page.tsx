@@ -4,7 +4,7 @@ import useSWR from "swr";
 import { get, post, patch, ApiError } from "@/lib/api/client";
 import { useTrades } from "@/components/academic-options";
 import { getFilterDefaults } from "@/components/filter-defaults";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Badge, Breadcrumbs } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Badge, Breadcrumbs } from "@/components/ui";
 import { Plus, Pencil } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -46,7 +46,7 @@ export default function SemestersPage() {
         <Label>Filter by trade</Label>
         <SearchableSelect options={trades} value={tradeId} onChange={setTradeId} ariaLabel="Trade" clearLabel="All trades" placeholder="All trades" />
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load semesters" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={5} rows={6} label="Loading semesters" /> : error ? <ErrorState message="Failed to load semesters" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No semesters" hint="Create semesters per trade." action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <Table headers={["Semester", "Trade", "Number", "Status", "Actions"]}>
@@ -84,7 +84,7 @@ export default function SemestersPage() {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDialog(null)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>

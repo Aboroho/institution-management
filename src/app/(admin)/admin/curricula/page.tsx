@@ -5,7 +5,7 @@ import Link from "next/link";
 import { get, post, ApiError } from "@/lib/api/client";
 import { useTrades, useSemesters, useCourses } from "@/components/academic-options";
 import { getFilterDefaults, applyDependentChange } from "@/components/filter-defaults";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Dialog, Input, Select, SearchableSelect, Label, FieldError, Spinner, Breadcrumbs, Badge } from "@/components/ui";
 import { Plus } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -65,7 +65,7 @@ export default function CurriculaPage() {
           <option value="">All semesters</option>{semesters.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </Select>
       </div>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load curricula" onRetry={() => mutate()} /> : items.length === 0 ? (
+      {isLoading ? <TableSkeleton columns={6} rows={6} label="Loading curricula" /> : error ? <ErrorState message="Failed to load curricula" onRetry={() => mutate()} /> : items.length === 0 ? (
         <EmptyState title="No curricula" action={<Button onClick={openCreate}><Plus size={16} /> New</Button>} />
       ) : (
         <Table headers={["Name", "Trade", "Semester", "Version", "Courses", "Status"]}>
@@ -107,7 +107,7 @@ export default function CurriculaPage() {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDialog(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>

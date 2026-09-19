@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, authApi } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, Badge, Tabs } from "@/components/ui";
+import { PageHeader, Card, Table, TableSkeleton, EmptyState, ErrorState, Breadcrumbs, Badge, Tabs } from "@/components/ui";
 import { StudentSemesterMarksReportView } from "@/components/reporting/student-semester-marks-report-view";
 
 type Row = Record<string, unknown>;
@@ -29,7 +29,7 @@ export default function StudentMarks() {
       />
 
       {tab === "overview" && (
-        isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load marks" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No marks yet" /> : (
+        isLoading ? <TableSkeleton columns={5} rows={6} label="Loading marks" /> : error ? <ErrorState message="Failed to load marks" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No marks yet" /> : (
           <div className="space-y-4">
             {items.map((g) => {
               const fin = g.final as Row;

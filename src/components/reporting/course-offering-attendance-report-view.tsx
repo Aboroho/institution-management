@@ -6,7 +6,8 @@ import { get, qs } from "@/lib/api/client";
 import {
   Card,
   Table,
-  LoadingSkeleton,
+  CardSkeleton,
+  TableSkeleton,
   ErrorState,
   EmptyState,
   Button,
@@ -130,7 +131,7 @@ export function CourseOfferingAttendanceReportView({
 
       {/* Report Content */}
       {isLoading ? (
-        <LoadingSkeleton rows={6} />
+        <><CardSkeleton lines={4} /><TableSkeleton columns={7} rows={6} label="Loading attendance report" /></>
       ) : error ? (
         <ErrorState message="Failed to load attendance report" onRetry={() => mutate()} />
       ) : !data ? (

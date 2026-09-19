@@ -24,7 +24,7 @@ import {
 } from "@/components/academic-options";
 import { applyDependentChange } from "@/components/filter-defaults";
 import {
-  PageHeader, Button, Table, LoadingSkeleton, ErrorState, EmptyState, SearchableSelect,
+  PageHeader, Button, Table, TableSkeleton, ErrorState, EmptyState, SearchableSelect,
   Label, Pagination, Breadcrumbs, Badge, Card,
 } from "@/components/ui";
 import { CourseOfferingCell, CourseOfferingBadges } from "@/components/course-offering-context";
@@ -201,7 +201,7 @@ export default function TeacherAssignmentPage() {
           <p className="font-semibold text-slate-800">Assignment history</p>
           <span className="text-sm text-slate-500">Closed assignments are preserved — history is never overwritten.</span>
         </div>
-        {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load assignments" onRetry={() => mutate()} /> : items.length === 0 ? (
+        {isLoading ? <TableSkeleton columns={6} rows={6} label="Loading assignments" /> : error ? <ErrorState message="Failed to load assignments" onRetry={() => mutate()} /> : items.length === 0 ? (
           <EmptyState title="No assignments yet" hint="Use the selectors above to assign the first teacher." />
         ) : (
           <>

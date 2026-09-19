@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, post, ApiError } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Spinner, Breadcrumbs, Badge, Card, Dialog, FieldError } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Spinner, Breadcrumbs, Badge, Card, Dialog, FieldError } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -63,13 +63,13 @@ export default function PromotionsPage() {
           <div><Label>Section</Label><Select value={f.sectionId ?? ""} onChange={(e) => setF({ ...f, sectionId: e.target.value })}><option value="">All</option>{sections.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></div>
         </div>
         <div className="mt-3">
-          <Button onClick={evaluate} disabled={loading || !f.academicYearId || !f.tradeId || !f.semesterId}>{loading && <Spinner />} Evaluate eligibility</Button>
+          <Button onClick={evaluate}  loading={loading} loadingText="Evaluating…" disabled={loading || !f.academicYearId || !f.tradeId || !f.semesterId}>Evaluate eligibility</Button>
         </div>
       </Card>
 
       {error && <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {result && <div className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Promotion complete: {str(result.count)} student(s) processed. Students have been notified.</div>}
-      {loading && <LoadingSkeleton />}
+      {loading && <TableSkeleton columns={7} rows={6} label="Evaluating promotion eligibility" />}
       {preview && !loading && (
         preview.length === 0 ? <EmptyState title="No active students in this context" /> : (
           <>
@@ -117,7 +117,7 @@ export default function PromotionsPage() {
         <FieldError error={error} />
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button onClick={execute} disabled={executing}>{executing && <Spinner />} Confirm</Button>
+          <Button onClick={execute}  loading={executing} loadingText="Working…">Confirm</Button>
         </div>
       </Dialog>
     </div>

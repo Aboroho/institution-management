@@ -33,13 +33,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<{ d
       ...init,
       headers,
     });
-  } catch {
+  } catch (caught) {
+    // A superseded search (AbortController) is not a failure the user should
+    // see — let the caller distinguish it from a real connection problem.
+    if (caught instanceof DOMException && caught.name === "AbortError") throw caught;
     throw new ApiError("NETWORK_ERROR", "Unable to connect. Check your connection and try again.", 0);
   }
   return handle<T>(res);
 }
 
-export const get = <T,>(path: string) => apiFetch<T>(path);
+export const get = <T,>(path: string, init?: Pick<RequestInit, "signal">) => apiFetch<T>(path, init);
 export const post = <T,>(path: string, body?: unknown) =>
   apiFetch<T>(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 export const patch = <T,>(path: string, body: unknown) =>

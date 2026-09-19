@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, authApi, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, LoadingSkeleton, ErrorState, Breadcrumbs, Badge, Spinner } from "@/components/ui";
+import { PageHeader, Button, Card, DetailSkeleton, ErrorState, Breadcrumbs, Badge, Spinner } from "@/components/ui";
 import { Upload, Download } from "lucide-react";
 
 type Row = Record<string, unknown>;
@@ -42,7 +42,7 @@ export default function StudentAssessmentDetail({ params }: { params: { id: stri
     window.open(r.data.url, "_blank");
   }
 
-  if (isLoading) return <><PageHeader title="Assessment" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Assessment" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Assessment" /><ErrorState message="Failed to load assessment" onRetry={() => mutate()} /></>;
 
   const mySubmission = ((data.submissions as Row[] | undefined) ?? []).find((s) => str(s.studentId) === studentId);

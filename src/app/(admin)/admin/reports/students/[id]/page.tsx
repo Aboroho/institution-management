@@ -1,7 +1,7 @@
 "use client";
 import useSWR from "swr";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, StatusBadge, Badge } from "@/components/ui";
+import { PageHeader, Card, Table, DetailSkeleton, ErrorState, Breadcrumbs, StatusBadge, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -9,7 +9,7 @@ const str = (v: unknown) => String(v ?? "");
 export default function StudentReportPage({ params }: { params: { id: string } }) {
   const { data, error, isLoading, mutate } = useSWR(`student-report-${params.id}`, () => get<Row>(`/reports/students/${params.id}`).then((r) => r.data));
 
-  if (isLoading) return <><PageHeader title="Student report" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Student report" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Student report" /><ErrorState message="Failed to load report" onRetry={() => mutate()} /></>;
 
   const student = data.student as Row;

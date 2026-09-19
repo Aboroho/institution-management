@@ -2,7 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { get, patch } from "@/lib/api/client";
-import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, EmptyState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { PageHeader, Button, Card, Table, DetailSkeleton, ErrorState, EmptyState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 import { BarChart3 } from "lucide-react";
 import { CourseOfferingBanner } from "@/components/course-offering-context";
 import { TeacherAssignmentActions } from "@/components/teacher-assignment";
@@ -25,7 +25,7 @@ export default function OfferingDetail({ params }: { params: { id: string } }) {
     await mutate();
   }
 
-  if (isLoading) return <><PageHeader title="Course offering" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Course offering" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Course offering" /><ErrorState message="Failed to load offering" onRetry={() => mutate()} /></>;
 
   const students = (data.students as Row[] | undefined) ?? [];

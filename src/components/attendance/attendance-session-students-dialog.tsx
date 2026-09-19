@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { Dialog, LoadingSkeleton, ErrorState, EmptyState, Table, StatusBadge, Label, Input } from "@/components/ui";
+import { Dialog, TableSkeleton, ErrorState, EmptyState, Table, StatusBadge, Label, Input } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { get } from "@/lib/api/client";
 import { filterByRoll } from "@/modules/attendance/attendance.permissions";
@@ -47,7 +47,7 @@ export function AttendanceSessionStudentsDialog({
   return (
     <Dialog open={open} title="Student status — recorded attendance" wide onClose={close}>
       {isLoading ? (
-        <LoadingSkeleton />
+        <TableSkeleton columns={3} rows={6} label="Loading students" />
       ) : error ? (
         <ErrorState message="Failed to load student statuses" />
       ) : !data ? (

@@ -2,7 +2,7 @@
 import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, LoadingSkeleton, EmptyState, ErrorState, Breadcrumbs, Badge } from "@/components/ui";
+import { PageHeader, Card, CardListSkeleton, EmptyState, ErrorState, Breadcrumbs, Badge } from "@/components/ui";
 import { CourseOfferingBadges } from "@/components/course-offering-context";
 import { Users, CalendarDays } from "lucide-react";
 
@@ -16,7 +16,7 @@ export default function TeacherOfferings() {
     <div>
       <Breadcrumbs items={[{ label: "Teacher", href: "/teacher/dashboard" }, { label: "My Courses" }]} />
       <PageHeader title="My Course Offerings" subtitle="Only courses you are actively assigned to." />
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No assigned courses" hint="Ask your administrator for an assignment." /> : (
+      {isLoading ? <CardListSkeleton count={3} lines={3} label="Loading assigned courses" /> : error ? <ErrorState message="Failed to load offerings" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No assigned courses" hint="Ask your administrator for an assignment." /> : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {items.map((o) => (
             <Link key={str(o.id)} href={`/teacher/course-offerings/${o.id}`}>

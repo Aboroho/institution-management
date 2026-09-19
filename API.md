@@ -67,13 +67,26 @@ Pagination: `?page=&limit=` (max 100). Filtering via query params, e.g.
 | GET/POST | /marks/change-requests | ADMIN / scoped |
 | POST | /marks/change-requests/{id}/approve, .../reject | ADMIN |
 | GET/POST | /notices | scoped; POST accepts JSON or multipart `payload` + repeated `files` |
-| GET | /notices/recipients | ADMIN / TEACHER (role- and assignment-scoped recipient options) |
+| GET | /notices/recipients | ADMIN / TEACHER — permissions + counts only (no option lists) |
+| GET | /notices/recipients?kind=COURSE_OFFERING\|TEACHER\|STUDENT&search=&page=&limit= | ADMIN / TEACHER — paginated, searchable recipient options (`kind=TEACHER` is ADMIN-only) |
+| POST | /notices/recipients | ADMIN / TEACHER — resolves `{ targets: [{ targetType, targetId }] }` to display labels |
 | GET/PATCH/DELETE | /notices/{id} | visible recipient / creator / ADMIN; PATCH and DELETE require optimistic `version` |
 | GET/DELETE | /notices/{id}/attachments/{attachmentId}/download (GET) or /notices/{id}/attachments/{attachmentId} (DELETE) | visible recipient for download; creator / ADMIN for removal (DELETE requires notice `version`) |
 | GET | /notices/files?key= | authenticated notice recipient / creator / ADMIN (local-storage fallback only) |
 | GET | /notifications | auth (own) |
 | POST | /notifications/{id}/read, /notifications/read-all | auth (own) |
 Notice targets are `{ type: "EVERYONE" | "ADMINS" | "COURSE_OFFERING" | "TEACHER" | "STUDENT", ids: string[] }`; group targets use an empty `ids` array. Update payloads include required `expectedVersion` and may include `removeAttachmentIds`.
+
+**Recipient selection.** The composer never loads the full recipient universe. `GET /notices/recipients` (no `kind`) returns only what the composer needs to render its controls:
+
+```json
+{ "canTargetEveryone": true, "canTargetAdmins": false, "canTargetTeachers": true,
+  "counts": { "offerings": 42, "students": 1380, "teachers": 57 } }
+```
+
+Each picker then pages through `GET /notices/recipients?kind=…` with `search`, `page` and `limit` (shared `parsePagination`: default 25, max 100), returning `{ id, label, hint? }` rows plus the standard `meta.{page,limit,total,totalPages}`. `POST /notices/recipients` re-labels already-selected IDs so a chip stays readable when its option is not on the current page.
+
+Scoping is enforced server-side and is identical across all three endpoints: teachers only ever see their own assigned offerings and the students enrolled in them, `kind=TEACHER` is rejected for teachers, `canTargetEveryone` is ADMIN-only and `canTargetAdmins` is TEACHER-only. These endpoints are a convenience for the UI, not the authorization boundary — `resolveTargets` independently re-validates every ID on `POST`/`PATCH /notices`, so a client that posts IDs it was never offered is still rejected.
 
 | GET | /reports/attendance, /reports/marks, /reports/students/{id}, /reports/dashboard | ADMIN |
 | GET | /reports/teacher-dashboard | TEACHER |

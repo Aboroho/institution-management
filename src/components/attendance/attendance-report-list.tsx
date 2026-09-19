@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import {
-  Card, Button, buttonClass, Input, LoadingSkeleton, EmptyState, ErrorState, Pagination, Label, Badge,
+  Card, Button, buttonClass, Input, CardListSkeleton, EmptyState, ErrorState, Pagination, Label, Badge,
 } from "@/components/ui";
 import { get, qs } from "@/lib/api/client";
 import { ClipboardList, FilterX, History, PencilLine, Users } from "lucide-react";
@@ -205,7 +205,7 @@ export function AttendanceReportList({
       </Card>
 
       {isLoading && items.length === 0 ? (
-        <LoadingSkeleton rows={5} />
+        <CardListSkeleton count={4} lines={3} label="Loading attendance sessions" />
       ) : error ? (
         <ErrorState message="Failed to load attendance sessions" onRetry={() => mutate()} />
       ) : items.length === 0 ? (

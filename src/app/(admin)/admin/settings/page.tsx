@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { get, patch, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, LoadingSkeleton, ErrorState, Input, Label, FieldError, Spinner, Breadcrumbs } from "@/components/ui";
+import { PageHeader, Button, Card, FormSkeleton, ErrorState, Input, Label, FieldError, Spinner, Breadcrumbs } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -27,7 +27,15 @@ export default function SettingsPage() {
     finally { setSaving(false); }
   }
 
-  if (isLoading) return <><PageHeader title="Settings" /><LoadingSkeleton /></>;
+  if (isLoading) return (
+    <>
+      <PageHeader title="Settings" />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <Card className="p-5"><FormSkeleton fields={6} /></Card>
+        <Card className="p-5"><FormSkeleton fields={3} /></Card>
+      </div>
+    </>
+  );
   if (error || !data) return <><PageHeader title="Settings" /><ErrorState message="Failed to load settings" onRetry={() => mutate()} /></>;
 
   return (
@@ -60,7 +68,7 @@ export default function SettingsPage() {
       </div>
       {msg && <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{msg}</p>}
       <FieldError error={formError} />
-      <div className="mt-3"><Button onClick={save} disabled={saving}>{saving && <Spinner />} Save settings</Button></div>
+      <div className="mt-3"><Button onClick={save}  loading={saving} loadingText="Saving…">Save settings</Button></div>
     </div>
   );
 }

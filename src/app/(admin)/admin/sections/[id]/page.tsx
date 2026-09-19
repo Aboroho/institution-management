@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 import { get } from "@/lib/api/client";
-import { PageHeader, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
+import { PageHeader, Card, Table, DetailSkeleton, ErrorState, Breadcrumbs, Tabs, Badge } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -12,7 +12,7 @@ export default function SectionDetail({ params }: { params: { id: string } }) {
   const [tab, setTab] = useState("overview");
   const { data, error, isLoading, mutate } = useSWR(`section-${params.id}`, () => get<Row>(`/sections/${params.id}`).then((r) => r.data));
   const { data: enrollments } = useSWR(tab === "students" ? `sec-en-${params.id}` : null, () => get<Row[]>(`/enrollments?sectionId=${params.id}&status=ACTIVE&limit=100`).then((r) => r.data));
-  if (isLoading) return <><PageHeader title="Section" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Section" /><DetailSkeleton fields={6} /></>;
   if (error || !data) return <><PageHeader title="Section" /><ErrorState message="Failed to load section" onRetry={() => mutate()} /></>;
 
   const offerings = (data.offerings as Row[] | undefined) ?? [];

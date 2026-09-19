@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useAcademicYears, useTrades, useSemesters, useShifts, useSections } from "@/components/academic-options";
-import { PageHeader, Button, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Breadcrumbs, Card } from "@/components/ui";
+import { PageHeader, Button, Table, TableSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Breadcrumbs, Card } from "@/components/ui";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown) => String(v ?? "");
@@ -36,7 +36,7 @@ export default function AttendanceReportPage() {
         </div>
       </Card>
       {!run ? <EmptyState title="Configure filters and run the report" /> :
-        isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Report failed" onRetry={() => mutate()} /> : rows.length === 0 ? <EmptyState title="No attendance in this range" /> : (
+        isLoading ? <TableSkeleton columns={8} rows={6} label="Loading attendance report" /> : error ? <ErrorState message="Report failed" onRetry={() => mutate()} /> : rows.length === 0 ? <EmptyState title="No attendance in this range" /> : (
         <Table headers={["Student ID", "Name", "Classes", "Present", "Absent", "Late", "Excused", "%"]}>
           {rows.map((r) => (
             <tr key={str(r.studentId)} className="hover:bg-slate-50">

@@ -4,7 +4,7 @@ import useSWR from "swr";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { del, get, patch, ApiError } from "@/lib/api/client";
-import { PageHeader, Button, Card, Table, LoadingSkeleton, ErrorState, Breadcrumbs, Tabs, StatusBadge, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
+import { PageHeader, Button, Card, Table, DetailSkeleton, TableSkeleton, ErrorState, Breadcrumbs, Tabs, StatusBadge, Badge, Dialog, Input, Select, Label, FieldError, Spinner } from "@/components/ui";
 import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { CourseOfferingCell, CourseOfferingBadges } from "@/components/course-offering-context";
 import { StudentAttendanceReportView } from "@/components/reporting/student-attendance-report-view";
@@ -52,7 +52,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
     } finally { setDeleting(false); }
   }
 
-  if (isLoading) return <><PageHeader title="Student" /><LoadingSkeleton /></>;
+  if (isLoading) return <><PageHeader title="Student" /><DetailSkeleton fields={8} /></>;
   if (error || !data) return <><PageHeader title="Student" /><ErrorState message="Failed to load student" onRetry={() => mutate()} /></>;
 
   const enrollments = (data.enrollments as Row[] | undefined) ?? [];
@@ -86,7 +86,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
         </Table>
       )}
       {tab === "attendance" && (
-        !attendance ? <LoadingSkeleton rows={3} /> : attendance.length === 0 ? <p className="text-sm text-slate-500">No attendance records.</p> : (
+        !attendance ? <TableSkeleton columns={7} rows={3} label="Loading attendance summary" /> : attendance.length === 0 ? <p className="text-sm text-slate-500">No attendance records.</p> : (
           <Table headers={["Course offering", "Classes", "Present", "Absent", "Late", "Excused", "%"]}>
             {attendance.map((a) => <tr key={str((a.offering as Row)?.id)}><td className="px-4 py-3"><CourseOfferingCell offering={a.offering as Row} /></td><td className="px-4 py-3">{str(a.total)}</td><td className="px-4 py-3">{str(a.present)}</td><td className="px-4 py-3">{str(a.absent)}</td><td className="px-4 py-3">{str(a.late)}</td><td className="px-4 py-3">{str(a.excused)}</td><td className="px-4 py-3 font-bold">{str(a.percentage)}%</td></tr>)}
           </Table>
@@ -96,7 +96,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
         <StudentAttendanceReportView studentId={params.id} />
       )}
       {tab === "marks" && (
-        !grades ? <LoadingSkeleton rows={3} /> : grades.length === 0 ? <p className="text-sm text-slate-500">No grades yet.</p> : (
+        !grades ? <TableSkeleton columns={4} rows={3} label="Loading grades" /> : grades.length === 0 ? <p className="text-sm text-slate-500">No grades yet.</p> : (
           <div className="space-y-4">
             {grades.map((g) => {
               const fin = g.final as Row;
@@ -137,7 +137,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
           <FieldError error={formError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving && <Spinner />} Save</Button>
+            <Button onClick={save}  loading={saving} loadingText="Saving…">Save</Button>
           </div>
         </div>
       </Dialog>
@@ -157,7 +157,7 @@ export default function StudentDetail({ params }: { params: { id: string } }) {
           <FieldError error={deleteError} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setDeleteOpen(false)} disabled={deleting}>Cancel</Button>
-            <Button variant="danger" onClick={remove} disabled={deleting}>{deleting && <Spinner />} Delete permanently</Button>
+            <Button variant="danger" onClick={remove}  loading={deleting} loadingText="Deleting…">Delete permanently</Button>
           </div>
         </div>
       </Dialog>

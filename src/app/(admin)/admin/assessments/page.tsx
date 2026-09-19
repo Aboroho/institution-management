@@ -3,7 +3,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { get, qs } from "@/lib/api/client";
 import { useOfferings } from "@/components/academic-options";
-import { PageHeader, Table, LoadingSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Pagination, Breadcrumbs, Badge, Card } from "@/components/ui";
+import { PageHeader, Table, TableSkeleton, EmptyState, ErrorState, Select, SearchableSelect, Label, Pagination, Breadcrumbs, Badge, Card } from "@/components/ui";
 import { CourseOfferingCell } from "@/components/course-offering-context";
 
 type Row = Record<string, unknown>;
@@ -29,7 +29,7 @@ export default function AdminAssessmentsPage() {
           <div><Label>Type</Label><Select value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}><option value="">All</option>{["ASSIGNMENT", "CLASS_TEST", "MIDTERM", "FINAL_EXAM", "PRACTICAL", "QUIZ", "OTHER"].map((t) => <option key={t} value={t}>{t}</option>)}</Select></div>
         </div>
       </Card>
-      {isLoading ? <LoadingSkeleton /> : error ? <ErrorState message="Failed to load assessments" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No assessments" /> : (
+      {isLoading ? <TableSkeleton columns={9} rows={6} label="Loading assessments" /> : error ? <ErrorState message="Failed to load assessments" onRetry={() => mutate()} /> : items.length === 0 ? <EmptyState title="No assessments" /> : (
         <>
           <Table headers={["Title", "Course", "Type", "Total", "Due", "Submitable", "Counts", "Submissions", "Marks"]}>
             {items.map((a) => (
